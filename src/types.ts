@@ -89,6 +89,7 @@ export type SessionUpdate =
   | { sessionUpdate: 'config_option_update'; configOptions: SessionConfigOption[] }
   | { sessionUpdate: 'available_commands_update'; availableCommands: AvailableCommand[] }
   | { sessionUpdate: 'current_mode_update'; currentModeId?: string; availableModes?: ModeOption[] }
+  | { sessionUpdate: 'current_model_update'; currentModelId?: string; availableModels?: ModelOption[] }
   | { sessionUpdate: 'session_info_update'; sessionId?: string; title?: string; cwd?: string }
   | { sessionUpdate: 'usage_update'; used?: number; size?: number; totalTokens?: number; inputTokens?: number; outputTokens?: number; thoughtTokens?: number; cost?: { amount: number; currency: string } };
 

@@ -57,20 +57,21 @@
 }
 
 .copsidian-msg.user .copsidian-msg-body {
-  background: var(--background-primary-accent);
+  background: var(--interactive-accent);
   color: var(--text-on-accent);
   padding: 8px 12px;
   border-radius: var(--radius-s);
   font-size: var(--font-ui-small);
+  align-self: flex-end;
+  max-width: 90%;
 }
 
 .copsidian-msg.assistant .copsidian-msg-body {
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
   padding: 8px 12px;
   border-radius: var(--radius-s);
   font-size: var(--font-ui-small);
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 /* Thinking */
@@ -197,8 +198,12 @@
   gap: 4px;
   padding: 4px 8px;
   flex-shrink: 0;
+  min-height: 0;
   background: var(--background-primary);
-  border-top: 1px solid var(--background-modifier-border);
+}
+
+.copsidian-context-chips:empty {
+  display: none;
 }
 
 .copsidian-chip {
@@ -221,8 +226,8 @@
 /* Toolbar */
 .copsidian-toolbar {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 4px;
   padding: 6px 8px;
   border-top: 1px solid var(--background-modifier-border);
   flex-shrink: 0;
@@ -230,25 +235,40 @@
   background: var(--background-secondary);
 }
 
-.copsidian-toolbar .tb-label {
-  font-size: var(--font-smaller);
-  color: var(--text-muted);
-  white-space: nowrap;
+.copsidian-toolbar .tb-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .copsidian-toolbar .tb-select {
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s);
-  padding: 2px 4px;
+  padding: 3px 6px;
   font-size: var(--font-smaller);
   color: var(--text-normal);
   outline: none;
-  width: 100px;
+  min-width: 0;
+}
+
+.copsidian-toolbar .tb-model {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.copsidian-toolbar .tb-effort {
+  flex-shrink: 0;
+  width: 80px;
+}
+
+.copsidian-toolbar .tb-agent {
+  width: 100%;
 }
 
 .copsidian-toolbar .copsidian-toolbar-sending {
-  margin-left: auto;
+  flex-shrink: 0;
   font-size: 12px;
 }
 
@@ -269,15 +289,15 @@
   resize: none;
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s);
-  padding: 8px;
+  padding: 8px 10px;
   font-size: var(--font-ui-small);
-  font-family: var(--font-editor);
-  line-height: 1.4;
+  font-family: var(--font-interface);
+  line-height: 1.5;
   background: var(--background-primary);
   color: var(--text-normal);
   outline: none;
-  min-height: 38px;
-  max-height: 200px;
+  min-height: 36px;
+  max-height: 160px;
 }
 
 .copsidian-input-area .copsidian-input:focus {

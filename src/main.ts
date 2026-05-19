@@ -12,6 +12,14 @@ export default class CopsidianPlugin extends Plugin {
   client: AgentRuntime | null = null;
   sessions: Map<string, SerializedSession> = new Map();
   activeSessionId: string | null = null;
+  private clientReadyResolvers: Array<() => void> = [];
+  private _clientReady = false;
+
+  /** Resolves when the first successful connection is established. */
+  waitForClient(): Promise<void> {
+    if (this._clientReady) return Promise.resolve();
+    return new Promise((resolve) => this.clientReadyResolvers.push(resolve));
+  }
 
   override async onload(): Promise<void> {
     await this.loadPluginData();
@@ -149,6 +157,9 @@ export default class CopsidianPlugin extends Plugin {
       await acp.connect();
       this.client = new AgentRuntime(acp);
       this.client.permissionMode = this.settings.permissionMode;
+      this._clientReady = true;
+      for (const resolve of this.clientReadyResolvers) resolve();
+      this.clientReadyResolvers = [];
       new Notice('Copsidian connected');
     } catch (e) {
       console.error('[copsidian] Connect failed:', e);

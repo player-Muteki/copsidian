@@ -1,4 +1,4 @@
-import type { SessionUpdate, SessionConfigOption, ModeOption, AvailableCommand } from '../types';
+import type { SessionUpdate, SessionConfigOption, ModeOption, AvailableCommand, ModelOption } from '../types';
 import type { ChatState } from './chatState';
 import type { ChatRenderer } from '../view/renderer';
 import type { SyncEngine } from '../sync/engine';
@@ -13,6 +13,7 @@ export interface StreamControllerDeps {
 	getSessionId: () => string | null;
 	onConfigUpdate?: (configOptions: SessionConfigOption[]) => void;
 	onModeUpdate?: (currentModeId: string | null, availableModes: ModeOption[]) => void;
+	onModelsUpdate?: (currentModelId: string | null, availableModels: ModelOption[]) => void;
 	onCommandsUpdate?: (commands: AvailableCommand[]) => void;
 }
 
@@ -115,6 +116,15 @@ export class StreamController {
 				if (modeId !== undefined) state.currentModeId = modeId;
 				if (modes) state.availableModes = modes;
 				this.deps.onModeUpdate?.(state.currentModeId, state.availableModes);
+				break;
+			}
+			case 'current_model_update': {
+				const m = ch as any;
+				const modelId = m.currentModelId as string | undefined;
+				const models = m.availableModels as ModelOption[] | undefined;
+				if (modelId !== undefined) state.currentModelId = modelId;
+				if (models) state.availableModels = models;
+				this.deps.onModelsUpdate?.(state.currentModelId, state.availableModels);
 				break;
 			}
 			case 'session_info_update': {

@@ -66,14 +66,15 @@ export class AcpClient implements OpencodeClient {
 
   async connect(): Promise<void> {
     const isWindows = process.platform === 'win32';
-    const cmd = isWindows ? 'cmd.exe' : this.cmdPath;
-    const args = isWindows ? ['/c', this.cmdPath, 'acp'] : ['acp'];
+    const cmd = this.cmdPath;
+    const args = ['acp'];
     const cwd = this.cwd ?? process.cwd();
 
     this.process = spawn(cmd, args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
+      shell: isWindows,
     });
 
     this.process.stdin!.on('error', (e: unknown) => console.error('[copsidian] stdin:', e));
@@ -99,8 +100,8 @@ export class AcpClient implements OpencodeClient {
 
     await this.request('initialize', {
       protocolVersion: 1,
-      clientInfo: { name: 'copsidian', version: '0.1.0' },
-      capabilities: {},
+      clientInfo: { name: 'copsidian', version: '0.2.0' },
+      clientCapabilities: {},
     });
     this.connected = true;
     console.log('[copsidian] ACP connected');
@@ -117,7 +118,7 @@ export class AcpClient implements OpencodeClient {
   }
 
   async createSession(cwd?: string): Promise<string> {
-    const r = await this.request('session/new', { cwd: this.resolveCwd(cwd) }) as any;
+    const r = await this.request('session/new', { cwd: this.resolveCwd(cwd), mcpServers: [] }) as any;
     this.applySessionSnapshot(r);
     this.sessionId_ = r.sessionId ?? null;
     return this.sessionId_ ?? '';
@@ -152,6 +153,11 @@ export class AcpClient implements OpencodeClient {
   async setMode(id: string, modeId: string): Promise<void> {
     await this.request('session/set_mode', { sessionId: id, modeId }).then(() => {});
     this.currentModeId = modeId;
+  }
+
+  async setModel(id: string, modelId: string): Promise<void> {
+    await this.request('session/set_model', { sessionId: id, modelId }).then(() => {});
+    this.currentModelId = modelId;
   }
 
   async setConfigOption(id: string, configId: string, value: string): Promise<SessionConfigOption[]> {
@@ -290,6 +296,14 @@ export class AcpClient implements OpencodeClient {
           this.availableModes = [...update.availableModes];
         }
         break;
+      case 'current_model_update':
+        if (typeof update.currentModelId === 'string') {
+          this.currentModelId = update.currentModelId;
+        }
+        if (update.availableModels) {
+          this.availableModels = [...update.availableModels];
+        }
+        break;
     }
   }
 
@@ -372,6 +386,8 @@ export class AcpClient implements OpencodeClient {
         return { sessionUpdate: 'usage_update', used: u.used, size: u.size, cost: u.cost, totalTokens: u.totalTokens, inputTokens: u.inputTokens, outputTokens: u.outputTokens, thoughtTokens: u.thoughtTokens };
       case 'current_mode_update':
         return { sessionUpdate: 'current_mode_update', currentModeId: u.currentModeId, availableModes: u.availableModes };
+      case 'current_model_update':
+        return { sessionUpdate: 'current_model_update', currentModelId: u.currentModelId, availableModels: u.availableModels };
       case 'session_info_update':
         return { sessionUpdate: 'session_info_update', sessionId: u.sessionId, title: u.title, cwd: u.cwd };
       default: return null;

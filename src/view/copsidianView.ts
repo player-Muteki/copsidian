@@ -117,9 +117,8 @@ export class CopsidianView extends ItemView {
 	override getIcon(): string { return 'bot'; }
 
 	override async onOpen(): Promise<void> {
-		const { containerEl: el } = this;
+		const el = this.contentEl;
 		el.addClass('copsidian-view');
-		el.parentElement?.addClass('copsidian-plugin');
 
 		// Init core modules
 		this.mention = new ContextMention(this.plugin.app.vault);
@@ -167,7 +166,7 @@ export class CopsidianView extends ItemView {
 			onModelChange: (model: string) => {
 				const client = this.plugin.getClient();
 				if (!this.state.sessionId || !client) return;
-				void client.setConfigOption(this.state.sessionId, 'model', model)
+				void client.setModel(this.state.sessionId, model)
 					.then(() => this.loadToolbarOptions())
 					.catch(() => {});
 			},
@@ -200,10 +199,12 @@ export class CopsidianView extends ItemView {
 			getSessionId: () => this.state.sessionId,
 			onConfigUpdate: (opts) => this.applyConfigOptions(opts),
 			onModeUpdate: (modeId, modes) => this.applyModeUpdate(modeId, modes),
-			onCommandsUpdate: (cmds) => { /* future: update command dropdown */ },
+			onModelsUpdate: (modelId, models) => this.applyModelUpdate(modelId, models),
+			onCommandsUpdate: (_cmds) => {},
 		});
 
 		// Ensure a session exists before rendering
+		await this.plugin.waitForClient();
 		if (!this.state.sessionId) {
 			try {
 				const c = this.plugin.getClient();
@@ -314,12 +315,12 @@ export class CopsidianView extends ItemView {
 				return;
 			}
 		};
-		this.containerEl.addEventListener('keydown', this.globalKeyHandler);
+		this.contentEl.addEventListener('keydown', this.globalKeyHandler);
 	}
 
 	private unregisterKeybindings(): void {
 		if (this.globalKeyHandler) {
-			this.containerEl.removeEventListener('keydown', this.globalKeyHandler);
+		this.contentEl.removeEventListener('keydown', this.globalKeyHandler);
 			this.globalKeyHandler = null;
 		}
 	}
@@ -486,7 +487,7 @@ export class CopsidianView extends ItemView {
 		this.input.setStreaming(false);
 		this.toolbar.setSending(false);
 		if (this.reconnectBtn) return;
-		this.reconnectBtn = this.containerEl.createEl('button', {
+		this.reconnectBtn = this.contentEl.createEl('button', {
 			cls: 'copsidian-reconnect-btn',
 			text: 'Reconnect',
 		});
@@ -569,7 +570,7 @@ export class CopsidianView extends ItemView {
 		}
 
 		const list = this.sessionStore.list();
-		const dd = this.containerEl.createDiv({ cls: 'copsidian-session-list' });
+		const dd = this.contentEl.createDiv({ cls: 'copsidian-session-list' });
 
 		const rect = this.sessionButtonEl?.getBoundingClientRect();
 		dd.style.position = 'fixed';
@@ -841,6 +842,13 @@ export class CopsidianView extends ItemView {
 		this.toolbar.updateAgents(
 			modes.map(m => ({ value: m.id, label: m.name })),
 			modeId ?? undefined,
+		);
+	}
+
+	private applyModelUpdate(modelId: string | null, models: import('../types').ModelOption[]): void {
+		this.toolbar.updateModels(
+			models.map(m => ({ value: m.modelId, label: m.name })),
+			modelId ?? undefined,
 		);
 	}
 

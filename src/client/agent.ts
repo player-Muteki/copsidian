@@ -28,6 +28,7 @@ export class AgentRuntime implements OpencodeClient {
   forkSession(id: string, cwd?: string): Promise<string> { return this.acp.forkSession(id, cwd); }
   resumeSession(id: string, cwd?: string): Promise<void> { return this.acp.resumeSession(id, cwd); }
   setMode(id: string, mode: string): Promise<void> { return this.acp.setMode(id, mode); }
+  setModel(id: string, model: string): Promise<void> { return this.acp.setModel(id, model); }
 
   async setConfigOption(id: string, cid: string, val: string): Promise<SessionConfigOption[]> {
     return this.acp.setConfigOption(id, cid, val);

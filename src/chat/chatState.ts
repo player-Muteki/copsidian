@@ -47,6 +47,7 @@ export class ChatState {
 	configOptions: SessionConfigOption[] = [];
 	availableCommands: AvailableCommand[] = [];
 	availableModels: Array<{ modelId: string; name: string }> = [];
+	currentModelId: string | null = null;
 	currentModeId: string | null = null;
 	availableModes: Array<{ id: string; name: string; description?: string }> = [];
 
@@ -78,6 +79,7 @@ export class ChatState {
 		this.configOptions = [];
 		this.availableCommands = [];
 		this.availableModels = [];
+		this.currentModelId = null;
 		this.currentModeId = null;
 		this.availableModes = [];
 		this.lastError = null;

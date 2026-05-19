@@ -1,5 +1,5 @@
 import * as esbuild from "esbuild";
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 
 const mode = process.argv.includes("--minify") ? "production" : "development";
@@ -86,5 +86,6 @@ const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 manifest.version = pkg.version;
 writeFileSync("manifest.json", JSON.stringify(manifest, null, 2) + "\n");
+copyFileSync("styles/main.css", "styles.css");
 
 console.log(`Build complete (${mode}). Version: ${manifest.version}`);

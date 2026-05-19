@@ -25,6 +25,7 @@ export interface OpencodeClient {
   resumeSession(sessionId: SessionId, cwd?: string): Promise<void>;
 
   setMode(sessionId: SessionId, modeId: string): Promise<void>;
+  setModel(sessionId: SessionId, modelId: string): Promise<void>;
   setConfigOption(sessionId: SessionId, configId: string, value: string): Promise<SessionConfigOption[]>;
 
   sendMessage(sessionId: SessionId, parts: PromptPart[], onChunk: (chunk: SessionUpdate) => void): Promise<AcpResponse>;
