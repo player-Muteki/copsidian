@@ -41,7 +41,6 @@ export class CopsidianView extends ItemView {
 	private permissionBannerEl: HTMLDivElement | null = null;
 	private welcomeEl: HTMLDivElement | null = null;
 	private globalKeyHandler: ((e: KeyboardEvent) => void) | null = null;
-	private escHandler: ((e: KeyboardEvent) => void) | null = null;
 	private newMessagesBtn: HTMLButtonElement | null = null;
 	private dragOverlayEl: HTMLDivElement | null = null;
 	private pendingImageParts: PromptPart[] = [];
@@ -299,13 +298,6 @@ export class CopsidianView extends ItemView {
 		this.globalKeyHandler = (e: KeyboardEvent) => {
 			const isMod = e.ctrlKey || e.metaKey;
 
-			// Esc → Stop generation
-			if (e.key === 'Escape' && this.busy) {
-				e.preventDefault();
-				void this.stopGeneration();
-				return;
-			}
-
 			// Ctrl/Cmd + N → New session
 			if (isMod && e.key.toLowerCase() === 'n' && !e.shiftKey) {
 				e.preventDefault();
@@ -328,24 +320,12 @@ export class CopsidianView extends ItemView {
 			}
 		};
 		this.contentEl.addEventListener('keydown', this.globalKeyHandler);
-		this.escHandler = (e: KeyboardEvent) => {
-			if (e.key === 'Escape' && this.state.isStreaming) {
-				e.preventDefault();
-				e.stopPropagation();
-				void this.stopGeneration();
-			}
-		};
-		document.addEventListener('keydown', this.escHandler, true);
 	}
 
 	private unregisterKeybindings(): void {
 		if (this.globalKeyHandler) {
 			this.contentEl.removeEventListener('keydown', this.globalKeyHandler);
 			this.globalKeyHandler = null;
-		}
-		if (this.escHandler) {
-			document.removeEventListener('keydown', this.escHandler, true);
-			this.escHandler = null;
 		}
 	}
 
