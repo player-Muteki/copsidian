@@ -307,23 +307,21 @@ export class ChatRenderer {
   }
 
   showUsage(usage: UsageDisplay): void {
-    const existing = this.container.querySelector('.copsidian-usage');
-    existing?.remove();
+    // Attach usage to the last assistant message wrap, not globally
+    const msgs = this.container.querySelectorAll('.copsidian-msg.assistant');
+    const lastMsg = msgs[msgs.length - 1] as HTMLElement | undefined;
+    if (!lastMsg) return;
 
-    const el = this.container.createDiv({ cls: 'copsidian-usage' });
-    const inputK = Math.round(usage.inputTokens / 1024);
-    const outputK = Math.round(usage.outputTokens / 1024);
-    const totalK = Math.round(usage.totalTokens / 1024);
+    lastMsg.querySelector('.copsidian-usage')?.remove();
+    const el = lastMsg.createDiv({ cls: 'copsidian-usage' });
 
-    let text = `↑ ${inputK}k ↓ ${outputK}k · ${totalK}k tokens`;
-    if (usage.cost) {
-      text += ` · $${usage.cost.amount.toFixed(4)}`;
-    }
-    el.textContent = text;
-
-    if (usage.thoughtTokens) {
-      el.title = `Input: ${usage.inputTokens}, Output: ${usage.outputTokens}, Thinking: ${usage.thoughtTokens}`;
-    }
+    const parts: string[] = [];
+    if (usage.inputTokens) parts.push(`↑${usage.inputTokens}`);
+    if (usage.outputTokens) parts.push(`↓${usage.outputTokens}`);
+    if (usage.thoughtTokens) parts.push(`💭${usage.thoughtTokens}`);
+    if (usage.cost) parts.push(`$${usage.cost.amount.toFixed(4)}`);
+    el.textContent = parts.join(' · ');
+    el.title = `Input: ${usage.inputTokens}, Output: ${usage.outputTokens}${usage.thoughtTokens ? `, Thinking: ${usage.thoughtTokens}` : ''}`;
 
     this.scrollToBottom();
   }

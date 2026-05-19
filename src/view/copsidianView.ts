@@ -234,6 +234,9 @@ export class CopsidianView extends ItemView {
 		// Show welcome page if no messages
 		this.maybeShowWelcome();
 
+		// Auto-reference the currently active file
+		this.autoRefActiveFile();
+
 		// Register global keybindings
 		this.registerKeybindings();
 
@@ -892,13 +895,12 @@ export class CopsidianView extends ItemView {
 	private addChip(ref: ContextRef): void {
 		if (this.currentRefs.some(r => r.id === ref.id)) return;
 		this.currentRefs.push(ref);
-		const chip = this.contextChipsEl.createDiv({ cls: 'copsidian-chip', text: `@${ref.name}` });
+		const chip = this.contextChipsEl.createDiv({ cls: 'copsidian-chip' });
 		chip.dataset.refId = ref.id;
 		chip.title = ref.path;
-		chip.onclick = (e: MouseEvent) => {
-			e.stopPropagation();
-			this.removeChip(ref.id);
-		};
+		chip.createSpan({ text: `@${ref.name}` });
+		const x = chip.createSpan({ cls: 'chip-remove', text: '×' });
+		x.onclick = (e: MouseEvent) => { e.stopPropagation(); this.removeChip(ref.id); };
 	}
 
 	private removeChip(id: string): void {
@@ -907,6 +909,12 @@ export class CopsidianView extends ItemView {
 		this.contextChipsEl.querySelectorAll('.copsidian-chip').forEach(el => {
 			if ((el as HTMLDivElement).dataset.refId === id) el.remove();
 		});
+	}
+
+	private autoRefActiveFile(): void {
+		const file = this.plugin.app.workspace.getActiveFile();
+		if (!file || file.extension !== 'md') return;
+		this.addChip({ id: file.path, type: 'note', name: file.basename, path: file.path });
 	}
 
 	// ── Autocomplete ──
