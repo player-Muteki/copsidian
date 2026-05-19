@@ -223,53 +223,60 @@
   background: var(--background-modifier-hover);
 }
 
-/* Toolbar */
+/* Toolbar (below input) */
 .copsidian-toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 6px 8px;
-  border-top: 1px solid var(--background-modifier-border);
-  flex-shrink: 0;
-  font-size: var(--font-smaller);
-  background: var(--background-secondary);
-}
-
-.copsidian-toolbar .tb-row {
   display: flex;
   align-items: center;
   gap: 4px;
+  padding: 4px 8px 6px;
+  flex-shrink: 0;
+  background: var(--background-primary);
 }
 
 .copsidian-toolbar .tb-select {
-  background: var(--background-primary);
+  background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s);
-  padding: 3px 6px;
+  padding: 2px 6px;
   font-size: var(--font-smaller);
-  color: var(--text-normal);
+  color: var(--text-muted);
   outline: none;
+  cursor: pointer;
   min-width: 0;
+}
+
+.copsidian-toolbar .tb-select:hover,
+.copsidian-toolbar .tb-select:focus {
+  color: var(--text-normal);
+  border-color: var(--text-accent);
 }
 
 .copsidian-toolbar .tb-model {
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.copsidian-toolbar .tb-effort {
-  flex-shrink: 0;
-  width: 80px;
+  max-width: 50%;
 }
 
 .copsidian-toolbar .tb-agent {
-  width: 100%;
+  flex: 0 1 auto;
+}
+
+.copsidian-toolbar .tb-effort {
+  flex: 0 1 auto;
 }
 
 .copsidian-toolbar .copsidian-toolbar-sending {
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-accent);
+  animation: copsidian-pulse 1s ease-in-out infinite;
   flex-shrink: 0;
-  font-size: 12px;
+}
+
+@keyframes copsidian-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 /* Input */
@@ -279,7 +286,7 @@
   flex-shrink: 0;
   background: var(--background-primary);
   border-top: 1px solid var(--background-modifier-border);
-  min-height: 80px;
+  min-height: 144px;
   max-height: 400px;
   position: relative;
 }

@@ -114,7 +114,7 @@ export class CopsidianView extends ItemView {
 
 	override getViewType(): string { return VIEW_TYPE; }
 	override getDisplayText(): string { return 'Copsidian'; }
-	override getIcon(): string { return 'bot'; }
+	override getIcon(): string { return 'terminal-square'; }
 
 	override async onOpen(): Promise<void> {
 		const el = this.contentEl;
@@ -153,7 +153,18 @@ export class CopsidianView extends ItemView {
 		// ── Context chips ──
 		this.contextChipsEl = el.createDiv({ cls: 'copsidian-context-chips' });
 
-		// ── Toolbar ──
+		// ── Input ──
+		this.inputAreaEl = el.createDiv({ cls: 'copsidian-input-area' });
+		this.input = new ChatInput(this.inputAreaEl, {
+			onSend: (text: string) => this.send(text, this.currentRefs),
+			onStop: () => this.stopGeneration(),
+			onToggleMention: () => this.showAC('@'),
+			onToggleSlash: () => this.showAC('/'),
+			onAddRef: (ref: ContextRef) => this.addChip(ref),
+			onRemoveRef: (id: string) => this.removeChip(id),
+		});
+
+		// ── Toolbar (below input) ──
 		const tbEl = el.createDiv({ cls: 'copsidian-toolbar' });
 		this.toolbar = new InputToolbar(tbEl, {
 			onAgentChange: (agent: string) => {
@@ -177,17 +188,6 @@ export class CopsidianView extends ItemView {
 					.then(() => this.loadToolbarOptions())
 					.catch(() => {});
 			},
-		});
-
-		// ── Input ──
-		this.inputAreaEl = el.createDiv({ cls: 'copsidian-input-area' });
-		this.input = new ChatInput(this.inputAreaEl, {
-			onSend: (text: string) => this.send(text, this.currentRefs),
-			onStop: () => this.stopGeneration(),
-			onToggleMention: () => this.showAC('@'),
-			onToggleSlash: () => this.showAC('/'),
-			onAddRef: (ref: ContextRef) => this.addChip(ref),
-			onRemoveRef: (id: string) => this.removeChip(id),
 		});
 
 		// Init StreamController

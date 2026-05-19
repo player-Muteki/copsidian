@@ -13,31 +13,26 @@ export class InputToolbar {
   constructor(container: HTMLDivElement, private callbacks: ToolbarCallbacks) {
     container.addClass('copsidian-toolbar');
 
-    const row1 = container.createDiv({ cls: 'tb-row' });
-    const row2 = container.createDiv({ cls: 'tb-row' });
-
-    // Row 1: Model (takes most space) + Effort
-    this.modelSelect = row1.createEl('select', { cls: 'copsidian-dropdown tb-select tb-model' });
+    this.modelSelect = container.createEl('select', { cls: 'copsidian-dropdown tb-select tb-model' });
     this.modelSelect.title = 'Model';
     this.modelSelect.onchange = () => this.callbacks.onModelChange?.(this.modelSelect.value);
 
-    this.effortSelect = row1.createEl('select', { cls: 'copsidian-dropdown tb-select tb-effort' });
-    this.effortSelect.title = 'Effort';
-    this.effortSelect.onchange = () => this.callbacks.onEffortChange?.(this.effortSelect.value);
-
-    this.sendingEl = row1.createSpan({ cls: 'copsidian-toolbar-sending', text: '⏳' });
-    this.sendingEl.style.display = 'none';
-
-    // Row 2: Agent mode
-    this.agentSelect = row2.createEl('select', { cls: 'copsidian-dropdown tb-select tb-agent' });
+    this.agentSelect = container.createEl('select', { cls: 'copsidian-dropdown tb-select tb-agent' });
     this.agentSelect.title = 'Agent mode';
     this.agentSelect.onchange = () => this.callbacks.onAgentChange?.(this.agentSelect.value);
+
+    this.effortSelect = container.createEl('select', { cls: 'copsidian-dropdown tb-select tb-effort' });
+    this.effortSelect.title = 'Thinking effort';
+    this.effortSelect.onchange = () => this.callbacks.onEffortChange?.(this.effortSelect.value);
+
+    this.sendingEl = container.createSpan({ cls: 'copsidian-toolbar-sending' });
+    this.sendingEl.style.display = 'none';
   }
 
   updateAgents(options: Array<{ value: string; label: string }>, current?: string): void {
     this.agentSelect.empty();
     if (options.length === 0) {
-      this.agentSelect.createEl('option', { text: '(none)', value: '' });
+      this.agentSelect.createEl('option', { text: '—', value: '' });
     } else {
       for (const o of options) {
         this.agentSelect.createEl('option', { text: o.label, value: o.value });
@@ -49,7 +44,7 @@ export class InputToolbar {
   updateModels(options: Array<{ value: string; label: string }>, current?: string): void {
     this.modelSelect.empty();
     if (options.length === 0) {
-      this.modelSelect.createEl('option', { text: '(no models)', value: '' });
+      this.modelSelect.createEl('option', { text: 'No models', value: '' });
     } else {
       for (const o of options) {
         this.modelSelect.createEl('option', { text: o.label, value: o.value });

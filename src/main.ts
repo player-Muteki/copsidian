@@ -25,7 +25,7 @@ export default class CopsidianPlugin extends Plugin {
     await this.loadPluginData();
 
     this.registerView(VIEW_TYPE, (leaf) => new CopsidianView(leaf, this));
-    this.addRibbonIcon('bot', 'Open Copsidian', () => this.activateView());
+    this.addRibbonIcon('terminal-square', 'Open Copsidian', () => this.activateView());
     this.addSettingTab(new CopsidianSettingsTab(this));
     this.addCommand({
       id: 'open-copsidian',
