@@ -45,6 +45,7 @@ export class CopsidianView extends ItemView {
 	private dragOverlayEl: HTMLDivElement | null = null;
 	private pendingImageParts: PromptPart[] = [];
 	private lastAutoRefId: string | null = null;
+	private sendStartTime = 0;
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -296,6 +297,13 @@ export class CopsidianView extends ItemView {
 	private registerKeybindings(): void {
 		this.globalKeyHandler = (e: KeyboardEvent) => {
 			const isMod = e.ctrlKey || e.metaKey;
+
+			// Esc → Stop generation
+			if (e.key === 'Escape' && this.busy) {
+				e.preventDefault();
+				void this.stopGeneration();
+				return;
+			}
 
 			// Ctrl/Cmd + N → New session
 			if (isMod && e.key.toLowerCase() === 'n' && !e.shiftKey) {
@@ -555,6 +563,7 @@ export class CopsidianView extends ItemView {
 		try {
 			await this.cancelActiveGeneration();
 			this.resetConversationView();
+			this.autoRefActiveFile();
 			this.state.sessionId = await c.createSession(this.getVaultCwd());
 			this.sessionStore.getOrCreate(this.state.sessionId);
 			this.sessionStore.setActive(this.state.sessionId);
@@ -683,6 +692,7 @@ export class CopsidianView extends ItemView {
 		this.state.isStreaming = true;
 		this.input.setStreaming(true);
 		this.toolbar.setSending(true);
+		this.sendStartTime = Date.now();
 		this.renderer.addUserMessage(text);
 		this.streamCtrl.saveMessage('user', text, 'text');
 		this.renderer.addAssistantPlaceholder();
@@ -718,7 +728,11 @@ export class CopsidianView extends ItemView {
 			this.input.focus();
 			// Show usage stats after streaming completes
 			if (this.state.usage) {
-				this.renderer.showUsage({ ...this.state.usage, modelId: this.state.currentModelId ?? undefined });
+				this.renderer.showUsage({
+					...this.state.usage,
+					modelId: this.state.currentModelId ?? undefined,
+					elapsedMs: Date.now() - this.sendStartTime,
+				});
 			}
 		}
 	}
@@ -904,6 +918,7 @@ export class CopsidianView extends ItemView {
 			models,
 			snapshot.currentModelId ?? modelConfig?.currentValue ?? this.plugin.settings.defaultModel,
 		);
+		this.state.currentModelId = snapshot.currentModelId ?? modelConfig?.currentValue ?? null;
 		this.toolbar.updateEffort(
 			efforts,
 			effortConfig?.currentValue ?? this.plugin.settings.defaultEffort,

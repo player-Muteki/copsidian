@@ -9,6 +9,7 @@ export interface UsageDisplay {
   thoughtTokens?: number;
   cost?: { amount: number; currency: string };
   modelId?: string;
+  elapsedMs?: number;
 }
 
 export class ChatRenderer {
@@ -339,6 +340,7 @@ export class ChatRenderer {
 
     const parts: string[] = [];
     if (usage.modelId) parts.push(usage.modelId.split('/').pop() ?? usage.modelId);
+    if (usage.elapsedMs !== undefined) parts.push(`${(usage.elapsedMs / 1000).toFixed(1)}s`);
     if (usage.inputTokens) parts.push(`↑${usage.inputTokens}`);
     if (usage.outputTokens) parts.push(`↓${usage.outputTokens}`);
     if (usage.thoughtTokens) parts.push(`💭${usage.thoughtTokens}`);
