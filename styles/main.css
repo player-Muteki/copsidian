@@ -8,6 +8,7 @@
 }
 
 .copsidian-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -24,6 +25,19 @@
 .copsidian-header-actions {
   display: flex;
   gap: 4px;
+}
+
+.copsidian-header-actions .mod-icon {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 2px 6px;
+  color: var(--text-normal);
+  cursor: pointer;
+}
+
+.copsidian-header-actions .mod-icon:hover {
+  background: var(--background-modifier-hover);
 }
 
 /* Messages */
@@ -183,6 +197,8 @@
   gap: 4px;
   padding: 4px 8px;
   flex-shrink: 0;
+  background: var(--background-primary);
+  border-top: 1px solid var(--background-modifier-border);
 }
 
 .copsidian-chip {
@@ -244,6 +260,8 @@
   padding: 8px;
   border-top: 1px solid var(--background-modifier-border);
   flex-shrink: 0;
+  position: relative;
+  background: var(--background-primary);
 }
 
 .copsidian-input-area .copsidian-input {
@@ -287,12 +305,16 @@
   cursor: not-allowed;
 }
 
+.copsidian-input-area .copsidian-send-btn.mod-stop {
+  background: var(--text-error);
+}
+
 /* Autocomplete dropdown */
 .copsidian-ac-dropdown {
-  position: fixed;
-  bottom: 100%;
-  left: 0;
-  right: 0;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 8px;
+  right: 8px;
   max-height: 240px;
   overflow-y: auto;
   background: var(--background-primary);
@@ -345,12 +367,32 @@
 }
 
 .copsidian-session-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 6px 12px;
   cursor: pointer;
   font-size: var(--font-smaller);
-  white-space: nowrap;
+}
+
+.copsidian-session-item .session-label {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.copsidian-session-item .session-delete {
+  opacity: 0;
+  margin-left: 8px;
+  color: var(--text-error);
+  font-weight: bold;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.copsidian-session-item:hover .session-delete {
+  opacity: 1;
 }
 
 .copsidian-session-item:hover {
@@ -385,4 +427,313 @@
   cursor: pointer;
   font-size: var(--font-smaller);
   margin-top: 8px;
+}
+
+.copsidian-reconnect-btn {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  width: 100%;
+  padding: 8px 16px;
+  background: var(--background-modifier-error);
+  color: var(--text-on-accent);
+  border: none;
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+  text-align: center;
+}
+
+.copsidian-reconnect-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Permission banner */
+.copsidian-permission-banner {
+  border: 1px solid var(--text-accent);
+  border-radius: var(--radius-s);
+  padding: 10px 12px;
+  background: var(--background-secondary);
+}
+
+.copsidian-permission-banner .perm-title {
+  font-weight: 600;
+  font-size: var(--font-ui-small);
+  margin-bottom: 4px;
+}
+
+.copsidian-permission-banner .perm-path {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  font-family: var(--font-editor);
+}
+
+.copsidian-permission-banner .perm-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.copsidian-permission-banner .perm-btn {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 4px 10px;
+  font-size: var(--font-smaller);
+  cursor: pointer;
+  background: var(--background-primary);
+}
+
+.copsidian-permission-banner .perm-allow_once {
+  background: var(--text-accent);
+  color: var(--text-on-accent);
+  border-color: var(--text-accent);
+}
+
+.copsidian-permission-banner .perm-allow_always {
+  background: var(--background-primary);
+  color: var(--text-accent);
+  border-color: var(--text-accent);
+}
+
+.copsidian-permission-banner .perm-reject_once {
+  background: var(--background-primary);
+  color: var(--text-error);
+  border-color: var(--text-error);
+}
+
+/* Usage stats */
+.copsidian-usage {
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  margin-top: 4px;
+  cursor: default;
+}
+
+.copsidian-usage:hover {
+  color: var(--text-normal);
+}
+
+/* Code block copy button */
+.copsidian-copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+pre:hover .copsidian-copy-btn {
+  opacity: 1;
+}
+
+.copsidian-copy-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* Diff rendering */
+.copsidian-diff {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  margin: 4px 0;
+  overflow: hidden;
+}
+
+.copsidian-diff-header {
+  padding: 4px 8px;
+  background: var(--background-secondary);
+  font-size: var(--font-smaller);
+  font-family: var(--font-editor);
+  cursor: pointer;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copsidian-diff-header:hover {
+  background: var(--background-modifier-hover);
+}
+
+.copsidian-diff-body {
+  padding: 4px 0;
+  font-size: var(--font-smaller);
+  font-family: var(--font-editor);
+  overflow-x: auto;
+}
+
+.diff-line {
+  display: flex;
+  padding: 0 8px;
+  line-height: 1.4;
+}
+
+.diff-line .diff-marker {
+  width: 12px;
+  flex-shrink: 0;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.diff-line.added {
+  background: rgba(34, 139, 34, 0.15);
+}
+
+.diff-line.added .diff-marker {
+  color: #22c55e;
+}
+
+.diff-line.removed {
+  background: rgba(220, 38, 38, 0.15);
+}
+
+.diff-line.removed .diff-marker {
+  color: #ef4444;
+}
+
+.diff-line.context {
+  color: var(--text-muted);
+}
+
+/* Welcome page */
+.copsidian-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+}
+
+.copsidian-welcome-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-normal);
+  margin-bottom: 4px;
+}
+
+.copsidian-welcome-subtitle {
+  font-size: var(--font-ui-small);
+  margin-bottom: 24px;
+}
+
+.copsidian-welcome-shortcuts {
+  font-size: var(--font-smaller);
+  line-height: 1.8;
+  text-align: left;
+  padding: 12px 16px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-s);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.copsidian-welcome-status {
+  margin-top: 16px;
+  font-size: var(--font-smaller);
+}
+
+.copsidian-welcome-status span {
+  color: var(--text-accent);
+}
+
+/* Message timestamp */
+.copsidian-msg {
+  position: relative;
+}
+
+.copsidian-msg[data-timestamp]::after {
+  content: attr(data-timestamp);
+  position: absolute;
+  right: 8px;
+  top: -16px;
+  font-size: 10px;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.copsidian-msg:hover[data-timestamp]::after {
+  opacity: 1;
+}
+
+/* Session search */
+.copsidian-session-search {
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: transparent;
+  font-size: var(--font-smaller);
+  outline: none;
+}
+
+.copsidian-session-search:focus {
+  background: var(--background-modifier-hover);
+}
+
+.copsidian-session-items {
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.copsidian-session-empty {
+  padding: 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--font-smaller);
+}
+
+/* New messages button */
+.copsidian-new-messages-btn {
+  position: sticky;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: var(--radius-s);
+  padding: 6px 16px;
+  font-size: var(--font-smaller);
+  cursor: pointer;
+  z-index: 50;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.copsidian-new-messages-btn:hover {
+  opacity: 0.9;
+}
+
+/* Drag overlay */
+.copsidian-drag-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border: 2px dashed var(--text-accent);
+  border-radius: var(--radius-s);
+  pointer-events: none;
+}
+
+.copsidian-drag-overlay div {
+  background: var(--background-primary);
+  padding: 16px 32px;
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-medium);
+  color: var(--text-accent);
 }

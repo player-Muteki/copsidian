@@ -1,57 +1,158 @@
-import { Plugin } from 'obsidian';
+import { Plugin, Notice } from 'obsidian';
 import { AgentRuntime } from './client/agent';
 import { AcpClient } from './client/acp';
 import { CopsidianView } from './view/copsidianView';
 import { CopsidianSettingsTab } from './settings';
 import { DEFAULT_SETTINGS, VIEW_TYPE } from './types';
-import type { CopsidianSettings } from './types';
+import type { CopsidianSettings, SerializedSession, SerializedMessage, PluginData } from './types';
+import { getVaultPath } from './utils/vault';
 
 export default class CopsidianPlugin extends Plugin {
   settings: CopsidianSettings = DEFAULT_SETTINGS;
   client: AgentRuntime | null = null;
+  sessions: Map<string, SerializedSession> = new Map();
+  activeSessionId: string | null = null;
 
   override async onload(): Promise<void> {
-    await this.loadSettings();
+    await this.loadPluginData();
 
     this.registerView(VIEW_TYPE, (leaf) => new CopsidianView(leaf, this));
+    this.addRibbonIcon('bot', 'Open Copsidian', () => this.activateView());
     this.addSettingTab(new CopsidianSettingsTab(this));
     this.addCommand({
       id: 'open-copsidian',
       name: 'Open Copsidian',
       callback: () => this.activateView(),
     });
-    await this.initClient();
-  }
-
-  async loadSettings(): Promise<void> {
-    this.settings = DEFAULT_SETTINGS;
-    const data = await super.loadData();
-    if (data) this.settings = { ...DEFAULT_SETTINGS, ...data };
+    if (this.settings.autoConnect !== false) {
+      void this.initClient();
+    }
   }
 
   override onunload(): void { this.client?.disconnect(); }
 
-  override async loadData(): Promise<CopsidianSettings | null> {
+  // ── Unified storage ──
+
+  override async loadData(): Promise<PluginData | null> {
     const saved = await super.loadData();
-    return { ...DEFAULT_SETTINGS, ...(saved ?? {}) };
+    if (!saved) return null;
+
+    const hasPluginData = typeof saved === 'object'
+      && saved !== null
+      && ('settings' in saved || 'sessions' in saved || 'activeSessionId' in saved);
+
+    if (hasPluginData) {
+      const data = saved as Partial<PluginData>;
+      return {
+        settings: { ...DEFAULT_SETTINGS, ...(data.settings ?? {}) },
+        sessions: data.sessions ?? [],
+        activeSessionId: data.activeSessionId ?? null,
+      };
+    }
+
+    return {
+      settings: { ...DEFAULT_SETTINGS, ...(saved as Partial<CopsidianSettings>) },
+      sessions: [],
+      activeSessionId: null,
+    };
   }
 
-  async activateView(): Promise<void> {
-    const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0] ?? await this.app.workspace.getRightLeaf(false);
-    if (leaf) {
-      await (leaf as any).setViewType(VIEW_TYPE);
-      this.app.workspace.revealLeaf(leaf);
+  override async saveData(data: unknown): Promise<void> {
+    await super.saveData(data);
+  }
+
+  private buildPluginData(): PluginData {
+    return {
+      settings: this.settings,
+      sessions: [...this.sessions.values()],
+      activeSessionId: this.activeSessionId,
+    };
+  }
+
+  async savePluginData(): Promise<void> {
+    this.pruneSessions();
+    await super.saveData(this.buildPluginData());
+  }
+
+  private pruneSessions(): void {
+    const maxMessages = this.settings.maxSessionMessages ?? 200;
+    const retentionDays = this.settings.sessionRetentionDays ?? 30;
+    const cutoffTime = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+
+    for (const [id, session] of this.sessions) {
+      // Remove old sessions
+      if (session.updatedAt < cutoffTime && session.messages.length === 0) {
+        this.sessions.delete(id);
+        continue;
+      }
+
+      // Truncate large sessions
+      if (session.messages.length > maxMessages) {
+        const keepCount = Math.floor(maxMessages / 2);
+        const truncated: SerializedMessage[] = [
+          ...session.messages.slice(0, keepCount),
+          {
+            role: 'system',
+            content: `[${session.messages.length - keepCount * 2} earlier messages truncated]`,
+            type: 'text',
+            timestamp: session.messages[keepCount]?.timestamp ?? Date.now(),
+          },
+          ...session.messages.slice(-keepCount),
+        ];
+        session.messages = truncated;
+      }
     }
+  }
+
+  async loadPluginData(): Promise<void> {
+    this.settings = DEFAULT_SETTINGS;
+    this.sessions.clear();
+    this.activeSessionId = null;
+
+    const pluginData = await this.loadData();
+    if (!pluginData) return;
+
+    this.settings = { ...DEFAULT_SETTINGS, ...(pluginData.settings ?? {}) };
+    for (const s of (pluginData.sessions ?? [])) {
+      this.sessions.set(s.sessionId, s);
+    }
+    this.activeSessionId = pluginData.activeSessionId ?? null;
+  }
+
+  // ── Client ──
+
+  async activateView(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0];
+    if (existing) {
+      await existing.setViewState({ type: VIEW_TYPE, active: true });
+      this.app.workspace.revealLeaf(existing);
+      return;
+    }
+
+    const workspace = this.app.workspace as any;
+    let leaf = null as import('obsidian').WorkspaceLeaf | null;
+
+    if (typeof workspace.ensureSideLeaf === 'function') {
+      leaf = await workspace.ensureSideLeaf(VIEW_TYPE, 'right', { active: true, reveal: true });
+    } else {
+      leaf = this.app.workspace.getRightLeaf(true) ?? this.app.workspace.getLeaf(true);
+    }
+
+    if (!leaf) return;
+    await leaf.setViewState({ type: VIEW_TYPE, active: true });
+    this.app.workspace.revealLeaf(leaf);
   }
 
   async initClient(): Promise<void> {
     try {
-      const acp = new AcpClient(this.settings.opencodePath);
+      const acp = new AcpClient(this.settings.opencodePath, getVaultPath(this.app));
       await acp.connect();
       this.client = new AgentRuntime(acp);
       this.client.permissionMode = this.settings.permissionMode;
+      new Notice('Copsidian connected');
     } catch (e) {
       console.error('[copsidian] Connect failed:', e);
+      new Notice('Failed to connect to OpenCode');
     }
   }
 

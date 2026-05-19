@@ -8,6 +8,7 @@ import type {
   AvailableCommand,
   ModelOption,
   ModeOption,
+  SessionSnapshot,
 } from '../types';
 import type { OpencodeClient } from './index';
 import type { SessionMeta } from '../types';
@@ -39,9 +40,23 @@ export class AcpClient implements OpencodeClient {
   private decoder = new TextDecoder();
   private sessionId_: string | null = null;
   private cmdPath: string;
+  private cwd?: string;
+  private availableCommands: AvailableCommand[] = [{ name: 'compact', description: 'compact the session' }];
+  private availableModels: ModelOption[] = [];
+  private availableModes: ModeOption[] = [];
+  private configOptions: SessionConfigOption[] = [];
+  private currentModelId: string | null = null;
+  private currentModeId: string | null = null;
+  onClose?: () => void;
+  onPermissionRequest?: (req: PermissionRequest) => Promise<string>;
+  onReconnect?: () => Promise<void>;
+  private reconnectAttempts = 0;
+  private readonly maxReconnectAttempts = 3;
+  private isIntentionalDisconnect = false;
 
-  constructor(cmdPath: string) {
+  constructor(cmdPath: string, cwd?: string) {
     this.cmdPath = cmdPath;
+    this.cwd = cwd;
   }
 
   get permissionMode(): string { return 'yolo'; }
@@ -50,14 +65,37 @@ export class AcpClient implements OpencodeClient {
   isConnected(): boolean { return this.connected; }
 
   async connect(): Promise<void> {
-    this.process = spawn(this.cmdPath, ['acp'], {
-      stdio: ['pipe', 'pipe', 'inherit'],
+    const isWindows = process.platform === 'win32';
+    const cmd = isWindows ? 'cmd.exe' : this.cmdPath;
+    const args = isWindows ? ['/c', this.cmdPath, 'acp'] : ['acp'];
+    const cwd = this.cwd ?? process.cwd();
+
+    this.process = spawn(cmd, args, {
+      cwd,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
     });
 
     this.process.stdin!.on('error', (e: unknown) => console.error('[copsidian] stdin:', e));
     this.process.stdout!.on('data', (d: Uint8Array) => this.onStdout(d));
-    this.process.on('close', () => { this.connected = false; });
-    this.process.on('error', (e: unknown) => { this.connected = false; console.error('[copsidian] process:', e); });
+    this.process.stderr?.on('data', (d: Uint8Array) => {
+      console.error('[copsidian] stderr:', this.decoder.decode(d));
+    });
+    this.process.on('close', (code) => {
+      this.connected = false;
+      console.error('[copsidian] process exited with code:', code);
+      this.onClose?.();
+
+      // Auto-reconnect if not intentional disconnect
+      if (!this.isIntentionalDisconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+        this.scheduleReconnect();
+      }
+    });
+    this.process.on('error', (e: unknown) => {
+      this.connected = false;
+      console.error('[copsidian] process:', e);
+      this.onClose?.();
+    });
 
     await this.request('initialize', {
       protocolVersion: 1,
@@ -69,6 +107,8 @@ export class AcpClient implements OpencodeClient {
   }
 
   async disconnect(): Promise<void> {
+    this.isIntentionalDisconnect = true;
+    this.reconnectAttempts = 0;
     return new Promise((resolve) => {
       if (!this.process) { resolve(); return; }
       this.process.on('close', () => resolve());
@@ -77,18 +117,20 @@ export class AcpClient implements OpencodeClient {
   }
 
   async createSession(cwd?: string): Promise<string> {
-    const r = await this.request('session/new', { cwd }) as any;
+    const r = await this.request('session/new', { cwd: this.resolveCwd(cwd) }) as any;
+    this.applySessionSnapshot(r);
     this.sessionId_ = r.sessionId ?? null;
     return this.sessionId_ ?? '';
   }
 
   async loadSession(id: string, cwd?: string): Promise<void> {
-    await this.request('session/load', { sessionId: id, cwd: cwd ?? undefined }) as void;
+    const r = await this.request('session/load', { sessionId: id, cwd: this.resolveCwd(cwd) }) as any;
+    this.applySessionSnapshot(r);
     this.sessionId_ = id;
   }
 
   async listSessions(cwd?: string): Promise<SessionMeta[]> {
-    const r = await this.request('session/list', { cwd, limit: 100 }) as any;
+    const r = await this.request('session/list', { cwd: this.resolveCwd(cwd), limit: 100 }) as any;
     return (r.sessions as SessionMeta[]) ?? [];
   }
 
@@ -97,22 +139,26 @@ export class AcpClient implements OpencodeClient {
   }
 
   async forkSession(id: string, cwd?: string): Promise<string> {
-    const r = await this.request('session/unstable_fork', { sessionId: id, cwd }) as any;
+    const r = await this.request('session/unstable_fork', { sessionId: id, cwd: this.resolveCwd(cwd) }) as any;
     return r.sessionId;
   }
 
   async resumeSession(id: string, cwd?: string): Promise<void> {
-    await this.request('session/resume', { sessionId: id, cwd }).then(() => {});
+    const r = await this.request('session/resume', { sessionId: id, cwd: this.resolveCwd(cwd) }) as any;
+    this.applySessionSnapshot(r);
     this.sessionId_ = id;
   }
 
   async setMode(id: string, modeId: string): Promise<void> {
     await this.request('session/set_mode', { sessionId: id, modeId }).then(() => {});
+    this.currentModeId = modeId;
   }
 
   async setConfigOption(id: string, configId: string, value: string): Promise<SessionConfigOption[]> {
     const r = await this.request('session/set_config_option', { sessionId: id, configId, value }) as any;
-    return (r?.configOptions as SessionConfigOption[]) ?? [];
+    const configOptions = (r?.configOptions as SessionConfigOption[]) ?? [];
+    this.applyConfigOptions(configOptions);
+    return configOptions;
   }
 
   sendMessage(id: string, parts: PromptPart[], onChunk: (u: SessionUpdate) => void): Promise<AcpResponse> {
@@ -124,21 +170,128 @@ export class AcpClient implements OpencodeClient {
     return this.request('session/cancel', { sessionId: id }).then(() => {}).catch(() => {});
   }
 
-  async requestPermission(req: PermissionRequest): Promise<string> {
-    // Auto-approve safe tools
-    if (['read', 'search'].includes(req.toolCall.kind)) return 'always';
-    return 'once';
+  compact(id: string): Promise<void> {
+    return this.request('session/compact', { sessionId: id }).then(() => {}).catch(() => {});
   }
 
-  getAvailableAgents(): Promise<ModeOption[]> { return Promise.resolve([]); }
-  getAvailableModels(): Promise<ModelOption[]> { return Promise.resolve([]); }
-  getAvailableCommands(): Promise<AvailableCommand[]> {
-    return Promise.resolve([{ name: 'compact', description: 'compact the session' }]);
+  async requestPermission(req: PermissionRequest): Promise<string> {
+    const allow = req.options.find((o) => o.kind === 'allow_once' || o.kind === 'allow_always');
+    return allow?.optionId ?? req.options[0]?.optionId ?? 'allow_once';
+  }
+
+  getAvailableAgents(): Promise<ModeOption[]> { return Promise.resolve([...this.availableModes]); }
+  getAvailableModels(): Promise<ModelOption[]> { return Promise.resolve([...this.availableModels]); }
+  getAvailableCommands(): Promise<AvailableCommand[]> { return Promise.resolve([...this.availableCommands]); }
+  getSessionSnapshot(): SessionSnapshot {
+    return {
+      configOptions: [...this.configOptions],
+      availableCommands: [...this.availableCommands],
+      availableModels: [...this.availableModels],
+      availableModes: [...this.availableModes],
+      currentModelId: this.currentModelId,
+      currentModeId: this.currentModeId,
+    };
   }
 
   getCurrentSessionId(): string | undefined { return this.sessionId_ ?? undefined; }
 
   // ── Private ──
+
+  private resolveCwd(cwd?: string): string {
+    return cwd ?? this.cwd ?? process.cwd();
+  }
+
+  private applySessionSnapshot(result: any): void {
+    if (!result || typeof result !== 'object') return;
+
+    if (Array.isArray(result.availableCommands)) {
+      this.availableCommands = this.mergeAvailableCommands(result.availableCommands as AvailableCommand[]);
+    }
+
+    if (Array.isArray(result.configOptions)) {
+      this.applyConfigOptions(result.configOptions as SessionConfigOption[]);
+    }
+
+    const models = result.models as { currentModelId?: string; availableModels?: ModelOption[] } | undefined;
+    if (models) {
+      if (typeof models.currentModelId === 'string') {
+        this.currentModelId = models.currentModelId;
+      }
+      if (Array.isArray(models.availableModels)) {
+        this.availableModels = [...models.availableModels];
+      }
+    }
+
+    const modes = result.modes as { currentModeId?: string; availableModes?: ModeOption[] } | undefined;
+    if (modes) {
+      if (typeof modes.currentModeId === 'string') {
+        this.currentModeId = modes.currentModeId;
+      }
+      if (Array.isArray(modes.availableModes)) {
+        this.availableModes = [...modes.availableModes];
+      }
+    }
+  }
+
+  private applyConfigOptions(configOptions: SessionConfigOption[]): void {
+    this.configOptions = [...configOptions];
+
+    const modelOption = configOptions.find((opt) => opt.id === 'model');
+    if (modelOption) {
+      this.currentModelId = modelOption.currentValue;
+      this.availableModels = modelOption.options.map((opt) => ({
+        modelId: opt.value,
+        name: opt.name,
+      }));
+    }
+
+    const modeOption = configOptions.find((opt) => opt.id === 'mode');
+    if (modeOption) {
+      this.currentModeId = modeOption.currentValue;
+      this.availableModes = modeOption.options.map((opt) => ({
+        id: opt.value,
+        name: opt.name,
+        description: opt.description,
+      }));
+    }
+  }
+
+  private mergeAvailableCommands(commands: AvailableCommand[]): AvailableCommand[] {
+    const merged: AvailableCommand[] = [];
+    const seen = new Set<string>();
+
+    for (const command of commands) {
+      const name = command.name.trim();
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      merged.push({ ...command });
+    }
+
+    if (!seen.has('compact')) {
+      merged.push({ name: 'compact', description: 'compact the session' });
+    }
+
+    return merged;
+  }
+
+  private applySessionUpdate(update: SessionUpdate): void {
+    switch (update.sessionUpdate) {
+      case 'config_option_update':
+        this.applyConfigOptions(update.configOptions);
+        break;
+      case 'available_commands_update':
+        this.availableCommands = this.mergeAvailableCommands(update.availableCommands);
+        break;
+      case 'current_mode_update':
+        if (typeof update.currentModeId === 'string') {
+          this.currentModeId = update.currentModeId;
+        }
+        if (update.availableModes) {
+          this.availableModes = [...update.availableModes];
+        }
+        break;
+    }
+  }
 
   private onStdout(data: Uint8Array): void {
     this.buffer += this.decoder.decode(data, { stream: true });
@@ -167,7 +320,10 @@ export class AcpClient implements OpencodeClient {
       // Notification
       if (msg.method === 'session/update') {
         const update = this.parseUpdate((msg.params as any)?.update);
-        if (update && this.chunkHandler) this.chunkHandler(update);
+        if (update) {
+          this.applySessionUpdate(update);
+          if (this.chunkHandler) this.chunkHandler(update);
+        }
       }
     } else if (msg.method && msg.id) {
       // Server-initiated request
@@ -178,7 +334,9 @@ export class AcpClient implements OpencodeClient {
   private handleServerRequest(msg: any, id: number): void {
     if (msg.method === 'request_permission') {
       const p = msg.params as { sessionId: string; toolCall: any; options: PermissionOption[] };
-      this.requestPermission({ sessionId: p.sessionId, toolCall: p.toolCall, options: p.options }).then((decision) => {
+      const req: PermissionRequest = { sessionId: p.sessionId, toolCall: p.toolCall, options: p.options };
+      const handler = this.onPermissionRequest ?? ((r: PermissionRequest) => this.requestPermission(r));
+      handler(req).then((decision) => {
         if (this.process?.stdin?.writable) {
           const resp: JsonRpcResponse = {
             jsonrpc: '2.0', id,
@@ -199,7 +357,7 @@ export class AcpClient implements OpencodeClient {
       case 'agent_thought_chunk':
         return { sessionUpdate: 'agent_thought_chunk', messageId: u.messageId, content: c };
       case 'tool_call':
-        return { sessionUpdate: 'tool_call', toolCallId: u.toolCallId, title: u.title, kind: u.kind, status: 'pending', rawInput: u.rawInput ?? {}, locations: u.locations ?? [] };
+        return { sessionUpdate: 'tool_call', toolCallId: u.toolCallId, title: u.title, kind: u.kind, status: u.status ?? 'pending', rawInput: u.rawInput, locations: u.locations };
       case 'tool_call_update':
         return { sessionUpdate: 'tool_call_update', toolCallId: u.toolCallId, status: u.status, kind: u.kind, title: u.title, rawInput: u.rawInput, rawOutput: u.rawOutput, content: u.content };
       case 'plan':
@@ -211,7 +369,11 @@ export class AcpClient implements OpencodeClient {
       case 'available_commands_update':
         return { sessionUpdate: 'available_commands_update', availableCommands: u.availableCommands ?? [] };
       case 'usage_update':
-        return { sessionUpdate: 'usage_update', used: u.used, size: u.size, cost: u.cost };
+        return { sessionUpdate: 'usage_update', used: u.used, size: u.size, cost: u.cost, totalTokens: u.totalTokens, inputTokens: u.inputTokens, outputTokens: u.outputTokens, thoughtTokens: u.thoughtTokens };
+      case 'current_mode_update':
+        return { sessionUpdate: 'current_mode_update', currentModeId: u.currentModeId, availableModes: u.availableModes };
+      case 'session_info_update':
+        return { sessionUpdate: 'session_info_update', sessionId: u.sessionId, title: u.title, cwd: u.cwd };
       default: return null;
     }
   }
@@ -228,5 +390,23 @@ export class AcpClient implements OpencodeClient {
   private send(obj: any): void {
     if (!this.process?.stdin?.writable) return;
     this.process.stdin.write(JSON.stringify(obj) + '\n');
+  }
+
+  private scheduleReconnect(): void {
+    this.reconnectAttempts++;
+    const delay = 2000 * this.reconnectAttempts; // Exponential backoff
+    console.log(`[copsidian] Scheduling reconnect attempt ${this.reconnectAttempts} in ${delay}ms`);
+    setTimeout(() => {
+      if (!this.connected && this.onReconnect) {
+        this.onReconnect().then(() => {
+          this.reconnectAttempts = 0;
+          console.log('[copsidian] Auto-reconnect successful');
+        }).catch(() => {
+          if (this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.scheduleReconnect();
+          }
+        });
+      }
+    }, delay);
   }
 }

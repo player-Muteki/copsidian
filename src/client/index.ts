@@ -9,6 +9,7 @@ import type {
   PromptPart,
   AcpResponse,
   SessionMeta,
+  SessionSnapshot,
 } from '../types';
 
 export interface OpencodeClient {
@@ -28,6 +29,7 @@ export interface OpencodeClient {
 
   sendMessage(sessionId: SessionId, parts: PromptPart[], onChunk: (chunk: SessionUpdate) => void): Promise<AcpResponse>;
   cancel(sessionId: SessionId): Promise<void>;
+  compact(sessionId: SessionId): Promise<void>;
 
   requestPermission(req: PermissionRequest): Promise<string>;
   permissionMode: string;
@@ -35,5 +37,6 @@ export interface OpencodeClient {
   getAvailableAgents(): Promise<ModeOption[]>;
   getAvailableModels(): Promise<ModelOption[]>;
   getAvailableCommands(): Promise<AvailableCommand[]>;
+  getSessionSnapshot(): SessionSnapshot;
   getCurrentSessionId(): SessionId | undefined;
 }

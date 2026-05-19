@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - '*'
+      - 'v*'
 
 permissions:
   contents: write
@@ -17,21 +17,24 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
 
       - run: npm ci
-      - run: npx esbuild --minify
+      - run: npm run build
+      - run: cp styles/main.css styles.css
 
       - name: Package
         run: |
           mkdir -p copsidian-release
-          cp main.js manifest.json styles/main.css copsidian-release/
-          tar -czf copsidian.tar.gz -C copsidian-release .
+          cp main.js manifest.json styles.css copsidian-release/
+          cd copsidian-release && zip -r ../copsidian-${{ github.ref_name }}.zip .
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            copsidian.tar.gz
+            copsidian-${{ github.ref_name }}.zip
             main.js
             manifest.json
-            styles/main.css
+            styles.css
+          generate_release_notes: true

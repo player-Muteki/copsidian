@@ -1,15 +1,19 @@
 import type { ContextRef } from '../types';
 
 export interface InputCallbacks {
-  onSend: (text: string, refs: ContextRef[]) => void;
+  onSend: (text: string, refs?: ContextRef[]) => void;
+  onStop: () => void;
   onToggleMention: () => void;
   onToggleSlash: () => void;
+  onAddRef: (ref: ContextRef) => void;
+  onRemoveRef: (id: string) => void;
 }
 
 export class ChatInput {
   private textarea: HTMLTextAreaElement;
   private sendBtn: HTMLButtonElement;
   private disabled = false;
+  private streaming = false;
 
   constructor(
     container: HTMLDivElement,
@@ -20,16 +24,40 @@ export class ChatInput {
     this.textarea.addClass('copsidian-input');
 
     this.sendBtn = container.createEl('button', { text: 'Send', cls: 'copsidian-send-btn' });
-    this.sendBtn.onclick = () => this.send();
+    this.sendBtn.onclick = () => this.handleButtonClick();
 
     this.textarea.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && this.streaming) {
+        e.preventDefault();
+        this.callbacks.onStop();
+        return;
+      }
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         this.send();
+        return;
+      }
+      if (e.key === '@') {
+        e.preventDefault();
+        this.callbacks.onToggleMention();
+        return;
+      }
+      if (e.key === '/') {
+        e.preventDefault();
+        this.callbacks.onToggleSlash();
+        return;
       }
     });
 
     this.autoResize();
+  }
+
+  private handleButtonClick(): void {
+    if (this.streaming) {
+      this.callbacks.onStop();
+    } else {
+      this.send();
+    }
   }
 
   private send(): void {
@@ -38,6 +66,14 @@ export class ChatInput {
     this.callbacks.onSend(text, []);
     this.textarea.value = '';
     this.autoResize();
+  }
+
+  setStreaming(on: boolean): void {
+    this.streaming = on;
+    this.sendBtn.textContent = on ? 'Stop' : 'Send';
+    this.sendBtn.classList.toggle('mod-stop', on);
+    this.textarea.disabled = on;
+    this.sendBtn.disabled = false;
   }
 
   setDisabled(on: boolean): void {

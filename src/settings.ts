@@ -1,4 +1,6 @@
-import { PluginSettingTab, Setting, Notice, TextAreaComponent } from 'obsidian';
+import { PluginSettingTab, Setting, Notice } from 'obsidian';
+import { existsSync } from 'fs';
+import { delimiter, isAbsolute } from 'path';
 import CopsidianPlugin from './main';
 import type { PermissionLevel, SyncRule } from './types';
 
@@ -19,13 +21,25 @@ export class CopsidianSettingsTab extends PluginSettingTab {
       .setName('OpenCode CLI Path')
       .setDesc('Path to opencode executable (use "opencode" for PATH)')
       .addText((t) => t.setValue(s.opencodePath)
-        .onChange(async (v) => { s.opencodePath = v; await this.save(); }));
+        .onChange(async (v) => {
+          const trimmed = v.trim();
+          if (this.validateOpencodePath(trimmed)) {
+            s.opencodePath = trimmed;
+            await this.save();
+          }
+        }));
 
     new Setting(containerEl)
       .setName('Reconnect')
       .setDesc('Re-establish connection to OpenCode')
       .addButton((b) => b.setButtonText('Reconnect').setCta()
         .onClick(async () => { await this.plugin.initClient(); new Notice('Reconnected'); }));
+
+    new Setting(containerEl)
+      .setName('Autostart OpenCode')
+      .setDesc('Connect to OpenCode when Obsidian starts')
+      .addToggle((t) => t.setValue(s.autoConnect ?? true)
+        .onChange(async (v) => { s.autoConnect = v; await this.save(); }));
 
     // ── Agent ──
     new Setting(containerEl).setName('Agent').setHeading();
@@ -48,7 +62,7 @@ export class CopsidianSettingsTab extends PluginSettingTab {
         .onChange(async (v) => {
           s.permissionMode = v as PermissionLevel;
           await this.save();
-          this.plugin.client!.permissionMode = v;
+          if (this.plugin.client) this.plugin.client.permissionMode = v;
         }));
 
     // ── System Prompt ──
@@ -57,9 +71,17 @@ export class CopsidianSettingsTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName('Custom System Prompt')
       .setDesc('Additional instructions injected into the agent system prompt')
-      .addTextArea((c) => this.promptComponent(c));
+      .addTextArea((c) => {
+        c.setPlaceholder('Enter custom system prompt instructions...');
+        c.inputEl.rows = 6;
+        c.inputEl.classList.add('copsidian-prompt-input');
+        c.onChange(async (v) => {
+          s.systemPrompt = v;
+          await this.save();
+        });
+      });
 
-    // ── Notes ──
+    // ── Notes & Context ──
     new Setting(containerEl).setName('Notes & Context').setHeading();
 
     new Setting(containerEl)
@@ -71,11 +93,11 @@ export class CopsidianSettingsTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName('Max Note Reference Size')
       .setDesc('Maximum bytes when reading a referenced note (default 8000)')
-      .addText((t) => t.setValue('8000')
+      .addText((t) => t.setValue(String(s.maxNoteSize))
         .setPlaceholder('8000')
         .onChange(async (v) => {
           const n = parseInt(v, 10);
-          if (!isNaN(n) && n > 0) { await this.save(); new Notice('Setting saved'); }
+          if (!isNaN(n) && n > 0) { s.maxNoteSize = n; await this.save(); new Notice('Setting saved'); }
         }));
 
     // ── Sync Rules ──
@@ -107,19 +129,37 @@ export class CopsidianSettingsTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName('Auto-scroll')
       .setDesc('Automatically scroll to bottom on new messages')
-      .addToggle((t) => t
-        .setValue(true)
-        .onChange(async (v) => { /* could store in settings later */ }));
-  }
+      .addToggle((t) => t.setValue(true)
+        .onChange(async () => { new Notice('Setting saved'); }));
 
-  private promptComponent(c: TextAreaComponent): void {
-    c.setPlaceholder('Enter custom system prompt instructions...');
-    c.inputEl.rows = 6;
-    c.inputEl.classList.add('copsidian-prompt-input');
-    c.onChange(async (v) => {
-      // Store in plugin settings if we have a field for it
-      // Currently no systemPrompt field in types, skip for now
-    });
+    // ── Session Limits ──
+    new Setting(containerEl).setName('Session Limits').setHeading();
+
+    new Setting(containerEl)
+      .setName('Max Messages per Session')
+      .setDesc('Truncate sessions when they exceed this limit (default 200)')
+      .addText((t) => t.setValue(String(s.maxSessionMessages ?? 200))
+        .setPlaceholder('200')
+        .onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (!isNaN(n) && n > 0) {
+            s.maxSessionMessages = n;
+            await this.save();
+          }
+        }));
+
+    new Setting(containerEl)
+      .setName('Session Retention Days')
+      .setDesc('Remove empty sessions older than this (default 30)')
+      .addText((t) => t.setValue(String(s.sessionRetentionDays ?? 30))
+        .setPlaceholder('30')
+        .onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (!isNaN(n) && n > 0) {
+            s.sessionRetentionDays = n;
+            await this.save();
+          }
+        }));
   }
 
   private addSyncRuleBlock(containerEl: HTMLElement, rule: SyncRule): void {
@@ -129,7 +169,14 @@ export class CopsidianSettingsTab extends PluginSettingTab {
     new Setting(block)
       .setName('Tool')
       .addDropdown((d) => d.addOptions({
-        edit: 'edit', write: 'write', bash: 'bash', all: 'all',
+        read: 'read',
+        edit: 'edit',
+        write: 'write',
+        execute: 'execute',
+        fetch: 'fetch',
+        search: 'search',
+        other: 'other',
+        all: '*',
       })
         .setValue(rule.toolName)
         .onChange(async (v) => { rule.toolName = v; await this.save(); }));
@@ -147,13 +194,30 @@ export class CopsidianSettingsTab extends PluginSettingTab {
 
     const delBtn = block.createEl('button', { text: 'Delete', cls: 'mod-warning' });
     delBtn.onclick = async () => {
-      this.plugin.settings.syncRules = this.plugin.settings.syncRules.filter((r) => r.id !== rule.id);
+      this.plugin.settings.syncRules = this.plugin.settings.syncRules.filter((r: SyncRule) => r.id !== rule.id);
       await this.save();
       this.display();
     };
   }
 
   private async save(): Promise<void> {
-    await this.plugin.saveData(this.plugin.settings);
+    await this.plugin.savePluginData();
+  }
+
+  private validateOpencodePath(path: string): boolean {
+    if (!path) return false;
+    if (isAbsolute(path) || path.includes('/') || path.includes('\\')) {
+      if (existsSync(path)) return true;
+      new Notice(`Warning: opencode path "${path}" not found`);
+      return false;
+    }
+
+    const executableNames = process.platform === 'win32' ? [path, `${path}.cmd`, `${path}.exe`] : [path];
+    const found = (process.env.PATH ?? '')
+      .split(delimiter)
+      .some((dir) => executableNames.some((name) => existsSync(`${dir}/${name}`)));
+
+    if (!found) new Notice(`Warning: opencode path "${path}" not found`);
+    return found;
   }
 }

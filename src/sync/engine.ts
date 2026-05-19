@@ -13,6 +13,7 @@ export class SyncEngine {
     for (const rule of this.rules) {
       if (!ruleMatches(rule, ctx)) continue;
       const note = buildSyncNote(ctx, rule.folder, rule.filenameTemplate, rule.template);
+      await this.ensureFolder(rule.folder);
       const existing = this.vault.getAbstractFileByPath(note.path);
       if (existing && this.isTFile(existing)) {
         await this.vault.modify(existing, note.content);
@@ -20,5 +21,12 @@ export class SyncEngine {
         await this.vault.create(note.path, note.content);
       }
     }
+  }
+
+  private async ensureFolder(folder: string): Promise<void> {
+    if (!folder || folder === '/') return;
+    const existing = this.vault.getAbstractFileByPath(folder);
+    if (existing) return;
+    await this.vault.createFolder(folder);
   }
 }

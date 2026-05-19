@@ -1,28 +1,12 @@
 import type CopsidianPlugin from '../main';
-import type { SessionMeta } from '../types';
+import type { SessionMeta, SerializedMessage, SerializedSession } from '../types';
 
-export interface SerializedMessage {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  type: 'text' | 'tool-call' | 'tool-result' | 'thinking';
-  toolCallId?: string;
-  timestamp: number;
-}
-
-export interface SerializedSession {
-  sessionId: string;
-  title: string;
-  opencodeSessionId?: string;
-  messages: SerializedMessage[];
-  createdAt: number;
-  updatedAt: number;
-}
-
+/** Session store for persisting conversations in Obsidian plugin data */
 export interface SessionStore {
   sessions: Map<string, SerializedSession>;
   activeId: string | null;
-  create(opencodeSessionId: string): string;
   get(id: string): SerializedSession | undefined;
+  getOrCreate(opencodeSessionId: string): SerializedSession;
   append(id: string, msg: SerializedMessage): void;
   setActive(id: string): void;
   list(): SessionMeta[];
@@ -33,26 +17,30 @@ export interface SessionStore {
 
 export function createSessionStore(plugin: CopsidianPlugin): SessionStore {
   const store: SessionStore = {
-    sessions: new Map(),
-    activeId: null,
+    sessions: plugin.sessions,
+    activeId: plugin.activeSessionId,
 
-    create(opencodeSessionId: string): string {
-      const id = crypto.randomUUID();
+    get(id: string): SerializedSession | undefined {
+      return this.sessions.get(id);
+    },
+
+    getOrCreate(opencodeSessionId: string): SerializedSession {
+      let session = this.sessions.get(opencodeSessionId);
+      if (session) return session;
+
       const now = Date.now();
-      this.sessions.set(id, {
-        sessionId: id,
+      session = {
+        sessionId: opencodeSessionId,
         title: `Chat ${new Date(now).toLocaleTimeString()}`,
         opencodeSessionId,
         messages: [],
         createdAt: now,
         updatedAt: now,
-      });
-      this.activeId = id;
-      return id;
-    },
-
-    get(id: string): SerializedSession | undefined {
-      return this.sessions.get(id);
+      };
+      this.sessions.set(opencodeSessionId, session);
+      this.activeId = opencodeSessionId;
+      plugin.activeSessionId = opencodeSessionId;
+      return session;
     },
 
     append(id: string, msg: SerializedMessage): void {
@@ -64,6 +52,7 @@ export function createSessionStore(plugin: CopsidianPlugin): SessionStore {
 
     setActive(id: string): void {
       this.activeId = id;
+      plugin.activeSessionId = id;
     },
 
     list(): SessionMeta[] {
@@ -75,20 +64,13 @@ export function createSessionStore(plugin: CopsidianPlugin): SessionStore {
     },
 
     async save(): Promise<void> {
-      const data = {
-        sessions: [...this.sessions.values()],
-        activeId: this.activeId,
-      };
-      await plugin.saveData(data);
+      plugin.activeSessionId = this.activeId;
+      await plugin.savePluginData();
     },
 
     async load(): Promise<void> {
-      const raw = await plugin.loadData();
-      const payload = raw as { sessions?: SerializedSession[]; activeId?: string | null } | null;
-      if (!payload?.sessions) return;
-      this.sessions.clear();
-      for (const s of payload.sessions) this.sessions.set(s.sessionId, s);
-      this.activeId = payload.activeId ?? null;
+      await plugin.loadPluginData();
+      this.activeId = plugin.activeSessionId;
     },
 
     remove(id: string): void {

@@ -7,6 +7,7 @@ import type {
   ModelOption,
   ModeOption,
   AcpResponse,
+  SessionSnapshot,
 } from '../types';
 import type { OpencodeClient } from './index';
 import type { SessionMeta } from '../types';
@@ -33,14 +34,41 @@ export class AgentRuntime implements OpencodeClient {
   }
 
   async sendMessage(id: string, parts: PromptPart[], handler: (u: SessionUpdate) => void): Promise<AcpResponse> {
-    return this.acp.sendMessage(id, parts, handler) as Promise<AcpResponse>;
+    const timeoutMs = 5 * 60 * 1000; // 5 minutes
+    return new Promise<AcpResponse>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.acp.cancel(id).catch(() => {});
+        reject(new Error('Request timeout (5 minutes)'));
+      }, timeoutMs);
+
+      this.acp.sendMessage(id, parts, handler)
+        .then((res) => {
+          clearTimeout(timeout);
+          resolve(res as AcpResponse);
+        })
+        .catch((err) => {
+          clearTimeout(timeout);
+          reject(err);
+        });
+    });
   }
 
   cancel(id: string): Promise<void> { return this.acp.cancel(id); }
+  compact(id: string): Promise<void> { return this.acp.compact(id); }
 
   async requestPermission(req: PermissionRequest): Promise<string> {
     if (this.permissionMode === 'yolo') {
-      if (['read', 'search', 'execute'].includes(req.toolCall.kind)) return 'always';
+      const allow = req.options.find((o) => o.kind === 'allow_always');
+      if (allow) return allow.optionId;
+      return req.options[0]?.optionId ?? 'allow_once';
+    }
+    if (this.permissionMode === 'plan') {
+      if (['read', 'search'].includes(req.toolCall.kind)) {
+        const allow = req.options.find((o) => o.kind === 'allow_always' || o.kind === 'allow_once');
+        if (allow) return allow.optionId;
+      }
+      const reject = req.options.find((o) => o.kind === 'reject_once');
+      if (reject) return reject.optionId;
     }
     return this.acp.requestPermission(req);
   }
@@ -48,5 +76,6 @@ export class AgentRuntime implements OpencodeClient {
   getAvailableAgents(): Promise<ModeOption[]> { return this.acp.getAvailableAgents(); }
   getAvailableModels(): Promise<ModelOption[]> { return this.acp.getAvailableModels(); }
   getAvailableCommands(): Promise<AvailableCommand[]> { return this.acp.getAvailableCommands(); }
+  getSessionSnapshot(): SessionSnapshot { return this.acp.getSessionSnapshot(); }
   getCurrentSessionId(): string | undefined { return this.acp.getCurrentSessionId(); }
 }
