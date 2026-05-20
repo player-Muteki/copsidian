@@ -12,6 +12,12 @@ import type {
   SessionSnapshot,
 } from '../types';
 
+export interface ClientHandlers {
+  onClose?: () => void;
+  onReconnect?: () => Promise<void>;
+  onPermissionRequest?: (req: PermissionRequest) => Promise<string>;
+}
+
 export interface OpencodeClient {
   isConnected(): boolean;
   connect(): Promise<void>;
@@ -40,4 +46,5 @@ export interface OpencodeClient {
   getAvailableCommands(): Promise<AvailableCommand[]>;
   getSessionSnapshot(): SessionSnapshot;
   getCurrentSessionId(): SessionId | undefined;
+  setClientHandlers(handlers: ClientHandlers): void;
 }

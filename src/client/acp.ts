@@ -32,6 +32,16 @@ interface JsonRpcResponse {
 
 type RpcEntry = { resolve: (v: unknown) => void; reject: (e: Error) => void };
 
+/** Fields common to all JSON-RPC message types received from the server. */
+interface JsonRpcIncoming {
+  jsonrpc?: string;
+  id?: number;
+  method?: string;
+  result?: unknown;
+  error?: { code: number; message: string };
+  params?: Record<string, unknown>;
+}
+
 export class AcpClient implements OpencodeClient {
   private process: ChildProcess | null = null;
   private connected = false;
@@ -120,36 +130,36 @@ export class AcpClient implements OpencodeClient {
   }
 
   async createSession(cwd?: string): Promise<string> {
-    const r = await this.request('session/new', { cwd: this.resolveCwd(cwd), mcpServers: [] }) as any;
+    const r = await this.request('session/new', { cwd: this.resolveCwd(cwd), mcpServers: [] }) as Record<string, unknown>;
     this.applySessionSnapshot(r);
-    this.sessionId_ = r.sessionId ?? null;
+    this.sessionId_ = (r.sessionId as string | undefined) ?? null;
     return this.sessionId_ ?? '';
   }
 
   async loadSession(id: string, cwd?: string): Promise<void> {
-    const r = await this.request('session/load', { sessionId: id, cwd: this.resolveCwd(cwd) }) as any;
+    const r = await this.request('session/load', { sessionId: id, cwd: this.resolveCwd(cwd) }) as Record<string, unknown>;
     this.applySessionSnapshot(r);
     this.sessionId_ = id;
   }
 
   async listSessions(cwd?: string): Promise<SessionMeta[]> {
-    const r = await this.request('session/list', { cwd: this.resolveCwd(cwd), limit: 100 }) as any;
+    const r = await this.request('session/list', { cwd: this.resolveCwd(cwd), limit: 100 }) as Record<string, unknown>;
     return (r.sessions as SessionMeta[]) ?? [];
+  }
+
+  async forkSession(id: string, cwd?: string): Promise<string> {
+    const r = await this.request('session/unstable_fork', { sessionId: id, cwd: this.resolveCwd(cwd) }) as Record<string, unknown>;
+    return r.sessionId as string;
+  }
+
+  async resumeSession(id: string, cwd?: string): Promise<void> {
+    const r = await this.request('session/resume', { sessionId: id, cwd: this.resolveCwd(cwd) }) as Record<string, unknown>;
+    this.applySessionSnapshot(r);
+    this.sessionId_ = id;
   }
 
   async closeSession(id: string): Promise<void> {
     await this.request('session/close', { sessionId: id }).catch(() => {});
-  }
-
-  async forkSession(id: string, cwd?: string): Promise<string> {
-    const r = await this.request('session/unstable_fork', { sessionId: id, cwd: this.resolveCwd(cwd) }) as any;
-    return r.sessionId;
-  }
-
-  async resumeSession(id: string, cwd?: string): Promise<void> {
-    const r = await this.request('session/resume', { sessionId: id, cwd: this.resolveCwd(cwd) }) as any;
-    this.applySessionSnapshot(r);
-    this.sessionId_ = id;
   }
 
   async setMode(id: string, modeId: string): Promise<void> {
@@ -163,7 +173,7 @@ export class AcpClient implements OpencodeClient {
   }
 
   async setConfigOption(id: string, configId: string, value: string): Promise<SessionConfigOption[]> {
-    const r = await this.request('session/set_config_option', { sessionId: id, configId, value }) as any;
+    const r = await this.request('session/set_config_option', { sessionId: id, configId, value }) as Record<string, unknown>;
     const configOptions = (r?.configOptions as SessionConfigOption[]) ?? [];
     this.applyConfigOptions(configOptions);
     return configOptions;
@@ -203,13 +213,19 @@ export class AcpClient implements OpencodeClient {
 
   getCurrentSessionId(): string | undefined { return this.sessionId_ ?? undefined; }
 
+  setClientHandlers(handlers: import('./index').ClientHandlers): void {
+    this.onClose = handlers.onClose ?? undefined;
+    this.onReconnect = handlers.onReconnect ?? undefined;
+    this.onPermissionRequest = handlers.onPermissionRequest ?? undefined;
+  }
+
   // ── Private ──
 
   private resolveCwd(cwd?: string): string {
     return cwd ?? this.cwd ?? process.cwd();
   }
 
-  private applySessionSnapshot(result: any): void {
+  private applySessionSnapshot(result: Record<string, unknown>): void {
     if (!result || typeof result !== 'object') return;
 
     if (Array.isArray(result.availableCommands)) {
@@ -321,8 +337,9 @@ export class AcpClient implements OpencodeClient {
   }
 
   private parseLine(line: string): void {
-    let msg: any;
-    try { msg = JSON.parse(line); } catch { return; }
+    let parsed: Record<string, unknown>;
+    try { parsed = JSON.parse(line); } catch { return; }
+    const msg: JsonRpcIncoming = parsed;
 
     if (msg.id && msg.result !== undefined) {
       const entry = this.pending.get(msg.id);
@@ -335,7 +352,7 @@ export class AcpClient implements OpencodeClient {
     } else if (msg.method && !msg.id) {
       // Notification
       if (msg.method === 'session/update') {
-        const update = this.parseUpdate((msg.params as any)?.update);
+        const update = this.parseUpdate(msg.params?.update as Record<string, unknown> | undefined);
         if (update) {
           this.applySessionUpdate(update);
           if (this.chunkHandler) this.chunkHandler(update);
@@ -347,51 +364,54 @@ export class AcpClient implements OpencodeClient {
     }
   }
 
-  private handleServerRequest(msg: any, id: number): void {
-    if (msg.method === 'request_permission') {
-      const p = msg.params as { sessionId: string; toolCall: any; options: PermissionOption[] };
-      const req: PermissionRequest = { sessionId: p.sessionId, toolCall: p.toolCall, options: p.options };
+  private handleServerRequest(msg: JsonRpcIncoming, id: number): void {
+    if (msg.method === 'request_permission' && msg.params) {
+      const p = msg.params;
+      const req: PermissionRequest = {
+        sessionId: p.sessionId as string,
+        toolCall: p.toolCall as PermissionRequest['toolCall'],
+        options: p.options as PermissionOption[],
+      };
       const handler = this.onPermissionRequest ?? ((r: PermissionRequest) => this.requestPermission(r));
       handler(req).then((decision) => {
-        if (this.process?.stdin?.writable) {
-          const resp: JsonRpcResponse = {
-            jsonrpc: '2.0', id,
-            result: { sessionId: p.sessionId, decision: { optionId: decision } },
-          };
-          this.process.stdin.write(JSON.stringify(resp) + '\n');
-        }
+        const resp: JsonRpcResponse = {
+          jsonrpc: '2.0', id,
+          result: { sessionId: p.sessionId, decision: { optionId: decision } },
+        };
+        this.send(resp as unknown as Record<string, unknown>);
       }).catch(() => {});
     }
   }
 
-  private parseUpdate(u: any): SessionUpdate | null {
+  private parseUpdate(u: Record<string, unknown> | undefined | null): SessionUpdate | null {
     if (!u || !u.sessionUpdate) return null;
     const c = u.content;
-    switch (u.sessionUpdate) {
+    const su = u.sessionUpdate as string;
+    switch (su) {
       case 'agent_message_chunk':
-        return { sessionUpdate: 'agent_message_chunk', messageId: u.messageId, content: c };
+        return { sessionUpdate: 'agent_message_chunk', messageId: u.messageId as string, content: c as { type: string; text: string } };
       case 'agent_thought_chunk':
-        return { sessionUpdate: 'agent_thought_chunk', messageId: u.messageId, content: c };
+        return { sessionUpdate: 'agent_thought_chunk', messageId: u.messageId as string, content: c as { type: string; text: string } };
       case 'tool_call':
-        return { sessionUpdate: 'tool_call', toolCallId: u.toolCallId, title: u.title, kind: u.kind, status: u.status ?? 'pending', rawInput: u.rawInput, locations: u.locations };
+        return { sessionUpdate: 'tool_call', toolCallId: u.toolCallId as string, title: u.title as string, kind: u.kind as import('../types').ToolKind, status: (u.status as string) ?? 'pending', rawInput: u.rawInput as Record<string, unknown>, locations: u.locations as { path: string }[] };
       case 'tool_call_update':
-        return { sessionUpdate: 'tool_call_update', toolCallId: u.toolCallId, status: u.status, kind: u.kind, title: u.title, rawInput: u.rawInput, rawOutput: u.rawOutput, content: u.content };
+        return { sessionUpdate: 'tool_call_update', toolCallId: u.toolCallId as string, status: u.status as 'pending' | 'in_progress' | 'completed' | 'failed', kind: u.kind as import('../types').ToolKind, title: u.title as string, rawInput: u.rawInput as Record<string, unknown>, rawOutput: u.rawOutput as Record<string, unknown>, content: u.content as import('../types').ToolCallContent[] };
       case 'plan':
-        return { sessionUpdate: 'plan', entries: u.entries ?? [] };
+        return { sessionUpdate: 'plan', entries: (u.entries ?? []) as { content: string; status: string; priority: string }[] };
       case 'user_message_chunk':
-        return { sessionUpdate: 'user_message_chunk', messageId: u.messageId, content: c };
+        return { sessionUpdate: 'user_message_chunk', messageId: u.messageId as string, content: c as { type: string; text: string } };
       case 'config_option_update':
-        return { sessionUpdate: 'config_option_update', configOptions: u.configOptions ?? [] };
+        return { sessionUpdate: 'config_option_update', configOptions: (u.configOptions ?? []) as import('../types').SessionConfigOption[] };
       case 'available_commands_update':
-        return { sessionUpdate: 'available_commands_update', availableCommands: u.availableCommands ?? [] };
+        return { sessionUpdate: 'available_commands_update', availableCommands: (u.availableCommands ?? []) as import('../types').AvailableCommand[] };
       case 'usage_update':
-        return { sessionUpdate: 'usage_update', used: u.used, size: u.size, cost: u.cost, totalTokens: u.totalTokens, inputTokens: u.inputTokens, outputTokens: u.outputTokens, thoughtTokens: u.thoughtTokens };
+        return { sessionUpdate: 'usage_update', used: u.used as number, size: u.size as number, cost: u.cost as { amount: number; currency: string }, totalTokens: u.totalTokens as number, inputTokens: u.inputTokens as number, outputTokens: u.outputTokens as number, thoughtTokens: u.thoughtTokens as number };
       case 'current_mode_update':
-        return { sessionUpdate: 'current_mode_update', currentModeId: u.currentModeId, availableModes: u.availableModes };
+        return { sessionUpdate: 'current_mode_update', currentModeId: u.currentModeId as string, availableModes: u.availableModes as import('../types').ModeOption[] };
       case 'current_model_update':
-        return { sessionUpdate: 'current_model_update', currentModelId: u.currentModelId, availableModels: u.availableModels };
+        return { sessionUpdate: 'current_model_update', currentModelId: u.currentModelId as string, availableModels: u.availableModels as import('../types').ModelOption[] };
       case 'session_info_update':
-        return { sessionUpdate: 'session_info_update', sessionId: u.sessionId, title: u.title, cwd: u.cwd };
+        return { sessionUpdate: 'session_info_update', sessionId: u.sessionId as string, title: u.title as string, cwd: u.cwd as string };
       default: return null;
     }
   }
@@ -405,9 +425,15 @@ export class AcpClient implements OpencodeClient {
     });
   }
 
-  private send(obj: any): void {
-    if (!this.process?.stdin?.writable) return;
-    this.process.stdin.write(JSON.stringify(obj) + '\n');
+  private send(obj: object): void {
+    if (!this.process?.stdin?.writable) {
+      console.error('[copsidian] ACP send failed: stdin not writable');
+      return;
+    }
+    const json = JSON.stringify(obj) + '\n';
+    this.process.stdin.write(json, (err: unknown) => {
+      if (err) console.error('[copsidian] ACP write error:', err);
+    });
   }
 
   private scheduleReconnect(): void {

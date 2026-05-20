@@ -28,8 +28,8 @@ export class ChatInput {
     this.textarea.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.key === 'Escape' && this.streaming) { e.preventDefault(); this.callbacks.onStop(); return; }
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); return; }
-      if (e.key === '@') { e.preventDefault(); this.callbacks.onToggleMention(); return; }
-      if (e.key === '/') { e.preventDefault(); this.callbacks.onToggleSlash(); return; }
+      if (e.key === '@' && this.isAtWordBoundary()) { e.preventDefault(); this.callbacks.onToggleMention(); return; }
+      if (e.key === '/' && this.isAtWordBoundary()) { e.preventDefault(); this.callbacks.onToggleSlash(); return; }
     });
   }
 
@@ -67,6 +67,14 @@ export class ChatInput {
   setDisabled(on: boolean): void {
     this.disabled = on;
     this.textarea.disabled = on;
+  }
+
+  /** Check if the character before the cursor is whitespace or start-of-input */
+  private isAtWordBoundary(): boolean {
+    const cursor = this.textarea.selectionStart;
+    if (cursor <= 0) return true;
+    const ch = this.textarea.value[cursor - 1];
+    return ch === ' ' || ch === '\n' || ch === '\t' || ch === '\r';
   }
 
   focus(): void { this.textarea.focus(); }

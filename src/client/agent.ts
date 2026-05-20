@@ -9,7 +9,7 @@ import type {
   AcpResponse,
   SessionSnapshot,
 } from '../types';
-import type { OpencodeClient } from './index';
+import type { OpencodeClient, ClientHandlers } from './index';
 import type { SessionMeta } from '../types';
 import { AcpClient } from './acp';
 
@@ -52,6 +52,12 @@ export class AgentRuntime implements OpencodeClient {
           reject(err);
         });
     });
+  }
+
+  setClientHandlers(handlers: ClientHandlers): void {
+    this.acp.onClose = handlers.onClose ?? undefined;
+    this.acp.onReconnect = handlers.onReconnect ?? undefined;
+    this.acp.onPermissionRequest = handlers.onPermissionRequest ?? undefined;
   }
 
   cancel(id: string): Promise<void> { return this.acp.cancel(id); }

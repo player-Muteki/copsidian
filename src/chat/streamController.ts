@@ -36,40 +36,39 @@ export class StreamController {
 		switch (ch.sessionUpdate) {
 			case 'agent_message_chunk': {
 				renderer.removeAssistantPlaceholder();
-				const text = (ch as any).content?.text ?? '';
+				const text = ch.content.text;
 				renderer.appendText(text, ch.messageId);
 				this.saveAssistantChunk(ch.messageId, text, 'text');
 				break;
 			}
 			case 'agent_thought_chunk': {
 				renderer.removeAssistantPlaceholder();
-				const text = (ch as any).content?.text ?? '';
+				const text = ch.content.text;
 				renderer.appendThinking(text, ch.messageId);
 				this.saveAssistantChunk(ch.messageId, text, 'thinking');
 				break;
 			}
 			case 'tool_call': {
-				const t = ch as any;
-				renderer.addToolCall(t.toolCallId, t.title, t.kind, t.rawInput);
-				if (t.rawInput) this.pendingToolInputs.set(t.toolCallId, t.rawInput);
-				if (t.kind) this.pendingToolKinds.set(t.toolCallId, t.kind);
+				renderer.addToolCall(ch.toolCallId, ch.title, ch.kind ?? 'other', ch.rawInput);
+				if (ch.rawInput) this.pendingToolInputs.set(ch.toolCallId, ch.rawInput);
+				if (ch.kind) this.pendingToolKinds.set(ch.toolCallId, ch.kind);
 				break;
 			}
 			case 'tool_call_update': {
-				const t = ch as any;
-				const input = t.rawInput ?? this.pendingToolInputs.get(t.toolCallId);
-				const kind = t.kind ?? this.pendingToolKinds.get(t.toolCallId);
-				renderer.updateToolCall(t.toolCallId, t.status, t.rawOutput, t.content);
+				const input = ch.rawInput ?? this.pendingToolInputs.get(ch.toolCallId);
+				const kind = ch.kind ?? this.pendingToolKinds.get(ch.toolCallId);
+				renderer.updateToolCall(ch.toolCallId, ch.status, ch.rawOutput, ch.content);
 
-				if ((t.status === 'completed' || t.status === 'failed') && !this.syncedToolCalls.has(t.toolCallId)) {
-					this.syncedToolCalls.add(t.toolCallId);
-					const contentText = t.content?.[0]?.content?.text ?? '';
+				if ((ch.status === 'completed' || ch.status === 'failed') && !this.syncedToolCalls.has(ch.toolCallId)) {
+					this.syncedToolCalls.add(ch.toolCallId);
+					const firstContent = ch.content?.[0];
+					const contentText = firstContent?.type === 'content' && firstContent.content?.type === 'text' ? firstContent.content.text : '';
 					const ctx: SyncContext = {
-						toolCallId: t.toolCallId,
+						toolCallId: ch.toolCallId,
 						toolName: kind ?? 'unknown',
-						toolStatus: t.status,
+						toolStatus: ch.status,
 						rawInput: input,
-						rawOutput: t.rawOutput,
+						rawOutput: ch.rawOutput,
 						content: contentText,
 					};
 					this.deps.syncEngine.process(ctx).catch(e => {
@@ -79,61 +78,47 @@ export class StreamController {
 				break;
 			}
 			case 'plan': {
-				renderer.setPlanEntries((ch as any).entries);
+				renderer.setPlanEntries(ch.entries);
 				break;
 			}
 			case 'config_option_update': {
-				const configOpts = (ch as any).configOptions as SessionConfigOption[] | undefined;
-				if (configOpts) {
-					state.configOptions = configOpts;
-					this.deps.onConfigUpdate?.(configOpts);
-				}
+				state.configOptions = ch.configOptions;
+				this.deps.onConfigUpdate?.(ch.configOptions);
 				break;
 			}
 			case 'available_commands_update': {
-				const cmds = (ch as any).availableCommands as AvailableCommand[] | undefined;
-				if (cmds) {
-					state.availableCommands = cmds;
-					this.deps.onCommandsUpdate?.(cmds);
-				}
+				state.availableCommands = ch.availableCommands;
+				this.deps.onCommandsUpdate?.(ch.availableCommands);
 				break;
 			}
 			case 'usage_update': {
-				const u = ch as any;
 				state.usage = {
-					totalTokens: u.totalTokens ?? u.used ?? 0,
-					inputTokens: u.inputTokens ?? 0,
-					outputTokens: u.outputTokens ?? 0,
-					thoughtTokens: u.thoughtTokens,
-					cost: u.cost,
+					totalTokens: ch.totalTokens ?? ch.used ?? 0,
+					inputTokens: ch.inputTokens ?? 0,
+					outputTokens: ch.outputTokens ?? 0,
+					thoughtTokens: ch.thoughtTokens,
+					cost: ch.cost,
 				};
 				break;
 			}
 			case 'current_mode_update': {
-				const m = ch as any;
-				const modeId = m.currentModeId as string | undefined;
-				const modes = m.availableModes as ModeOption[] | undefined;
-				if (modeId !== undefined) state.currentModeId = modeId;
-				if (modes) state.availableModes = modes;
+				if (ch.currentModeId !== undefined) state.currentModeId = ch.currentModeId;
+				if (ch.availableModes) state.availableModes = ch.availableModes;
 				this.deps.onModeUpdate?.(state.currentModeId, state.availableModes);
 				break;
 			}
 			case 'current_model_update': {
-				const m = ch as any;
-				const modelId = m.currentModelId as string | undefined;
-				const models = m.availableModels as ModelOption[] | undefined;
-				if (modelId !== undefined) state.currentModelId = modelId;
-				if (models) state.availableModels = models;
+				if (ch.currentModelId !== undefined) state.currentModelId = ch.currentModelId;
+				if (ch.availableModels) state.availableModels = ch.availableModels;
 				this.deps.onModelsUpdate?.(state.currentModelId, state.availableModels);
 				break;
 			}
 			case 'session_info_update': {
-				const info = ch as any;
-				const sid = info.sessionId ?? this.deps.getSessionId();
-				if (sid && info.title) {
+				const sid = ch.sessionId ?? this.deps.getSessionId();
+				if (sid && ch.title) {
 					const session = this.deps.sessionStore.get(sid);
 					if (session) {
-						session.title = info.title;
+						session.title = ch.title;
 						this.scheduleSave();
 					}
 				}

@@ -45,6 +45,8 @@ export class CopsidianView extends ItemView {
 	private newMessagesBtn: HTMLButtonElement | null = null;
 	private dragOverlayEl: HTMLDivElement | null = null;
 	private pendingImageParts: PromptPart[] = [];
+	private pendingImageTotalBytes = 0;
+	private static readonly MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
 	private lastAutoRefId: string | null = null;
 	private sendStartTime = 0;
 
@@ -72,6 +74,7 @@ export class CopsidianView extends ItemView {
 		this.toolbar.setSending(false);
 		this.currentRefs = [];
 		this.pendingImageParts = [];
+		this.pendingImageTotalBytes = 0;
 		this.manualRefs.clear();
 		this.lastAutoRefId = null;
 		this.mention.clear();
@@ -99,23 +102,27 @@ export class CopsidianView extends ItemView {
 	private bindClientHandlers(): void {
 		const client = this.plugin.getClient();
 		if (!client) return;
-		const acp = (client as any).acp;
-		if (!acp) return;
-		acp.onClose = () => this.handleDisconnect();
-		acp.onReconnect = async () => {
-			await this.plugin.initClient();
-			this.bindClientHandlers();
-			this.state.isConnected = true;
-			this.updateWelcomeStatus();
-			this.hideReconnectBtn();
-			this.hookPermissionHandler();
-			try {
-				await this.syncRuntimeSession(this.state.sessionId);
-			} catch (e) {
-				console.error('[copsidian] session resync:', e);
-			}
-			this.loadToolbarOptions();
-		};
+		client.setClientHandlers({
+			onClose: () => this.handleDisconnect(),
+			onReconnect: async () => {
+				await this.plugin.initClient();
+				this.bindClientHandlers();
+				this.state.isConnected = true;
+				this.updateWelcomeStatus();
+				this.hideReconnectBtn();
+				try {
+					await this.syncRuntimeSession(this.state.sessionId);
+				} catch (e) {
+					console.error('[copsidian] session resync:', e);
+				}
+				this.loadToolbarOptions();
+			},
+			onPermissionRequest: async (req) => (
+				client.permissionMode === 'safe'
+					? this.showPermissionBanner(req)
+					: client.requestPermission(req)
+			),
+		});
 	}
 
 	override getViewType(): string { return VIEW_TYPE; }
@@ -236,7 +243,6 @@ export class CopsidianView extends ItemView {
 
 		// Watch for ACP disconnection and auto-reconnect
 		this.bindClientHandlers();
-		this.hookPermissionHandler();
 
 		// Show welcome page if no messages
 		this.maybeShowWelcome();
@@ -443,6 +449,7 @@ export class CopsidianView extends ItemView {
 
 	private clearPendingImageChips(): void {
 		this.pendingImageParts = [];
+		this.pendingImageTotalBytes = 0;
 		this.contextChipsEl.querySelectorAll('.copsidian-chip').forEach((el) => {
 			if ((el as HTMLDivElement).dataset.kind === 'image') el.remove();
 		});
@@ -474,12 +481,18 @@ export class CopsidianView extends ItemView {
 				// Image → base64 PromptPart
 				try {
 					const data = await this.fileToBase64(file);
+					const imageBytes = data.length; // base64 string length as proxy
+					if (this.pendingImageTotalBytes + imageBytes > CopsidianView.MAX_IMAGE_BYTES) {
+						console.warn(`[copsidian] Image "${file.name}" exceeds total size limit (10MB), skipped`);
+						continue;
+					}
+					this.pendingImageTotalBytes += imageBytes;
 					this.pendingImageParts.push({
 						type: 'image',
 						mimeType: file.type,
 						data,
 					});
-					// Show chip for image
+				// Show chip for image
 				const chip = this.contextChipsEl.createDiv({
 					cls: 'copsidian-chip',
 					text: `🖼 ${file.name}`,
@@ -487,6 +500,7 @@ export class CopsidianView extends ItemView {
 				chip.dataset.kind = 'image';
 				chip.onclick = () => {
 					this.pendingImageParts = this.pendingImageParts.filter(p => p.data !== data);
+					this.pendingImageTotalBytes -= imageBytes;
 					chip.remove();
 				};
 				} catch (err) {
@@ -540,7 +554,6 @@ export class CopsidianView extends ItemView {
 		try {
 			await this.plugin.initClient();
 			this.bindClientHandlers();
-			this.hookPermissionHandler();
 			try {
 				await this.syncRuntimeSession(this.state.sessionId);
 			} catch (e) {
@@ -808,18 +821,6 @@ export class CopsidianView extends ItemView {
 	}
 
 	// ── Permission UI ──
-
-	private hookPermissionHandler(): void {
-		const client = this.plugin.getClient();
-		if (!client) return;
-		const acp = (client as any).acp;
-		if (!acp) return;
-		acp.onPermissionRequest = async (req: PermissionRequest) => (
-			client.permissionMode === 'safe'
-				? this.showPermissionBanner(req)
-				: client.requestPermission(req)
-		);
-	}
 
 	private showPermissionBanner(req: PermissionRequest): Promise<string> {
 		return new Promise((resolve) => {
