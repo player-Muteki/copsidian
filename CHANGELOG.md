@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.3 - 2026-05-20
+
+### Fixed
+- Fix `@` mention trigger false-positives in emails and paths
+- Eliminate internal `(client as any).acp` property access with typed `setClientHandlers()`
+- Log ACP write failures instead of silent returns
+- Limit total pending image data to 10MB to prevent OOM
+- Replace `any` with proper types in ACP protocol parsing and stream handling
+
 ## 0.0.2 - 2026-05-20
 
 ### Fixed
