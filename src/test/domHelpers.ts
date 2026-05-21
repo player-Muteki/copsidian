@@ -30,6 +30,10 @@ export function installObsidianDomHelpers(): void {
   HTMLElement.prototype.empty = function empty(): void {
     this.replaceChildren();
   };
+
+  HTMLElement.prototype.setText = function setText(text: string): void {
+    this.textContent = text;
+  };
 }
 
 function applyOptions(el: HTMLElement, options: CreateElOptions): void {
