@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.4 - 2026-05-21
+
+### Added
+- Add UI language setting with English/Chinese locale switch in Settings → Appearance
+
+### Changed
+- Wire i18n dictionaries through settings and interface labels for bilingual UX
+- Refresh README with updated i18n feature notes and roadmap status
+
 ## 0.0.3 - 2026-05-20
 
 ### Fixed
