@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.6 - 2026-05-21
+
+### Added
+- Add configurable MCP server support for new OpenCode sessions
+- Add Settings UI for enabling MCP servers with command and argument configuration
+
+### Changed
+- Sync local release artifacts automatically during production builds
+
 ## 0.0.5 - 2026-05-21
 
 ### Fixed
