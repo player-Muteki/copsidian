@@ -4,10 +4,14 @@ import { delimiter, isAbsolute } from 'path';
 import CopsidianPlugin from './main';
 import { VIEW_TYPE } from './types';
 import type { McpServerConfig, PermissionLevel, SyncRule } from './types';
-import { setLocale } from './i18n/index';
+import { setLocale, t as locale } from './i18n/index';
 
 interface AutoScrollView {
   setAutoScrollEnabled?: (enabled: boolean) => void;
+}
+
+interface LocaleAwareView {
+  refreshLocale?: () => void;
 }
 
 export class CopsidianSettingsTab extends PluginSettingTab {
@@ -19,13 +23,14 @@ export class CopsidianSettingsTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     const s = this.plugin.settings;
+    const labels = locale().settings;
 
     // ── Connection ──
-    new Setting(containerEl).setName('Connection').setHeading();
+    new Setting(containerEl).setName(labels.connection).setHeading();
 
     new Setting(containerEl)
-      .setName('OpenCode CLI Path')
-      .setDesc('Path to opencode executable (use "opencode" for PATH)')
+      .setName(labels.opencodePath.name)
+      .setDesc(labels.opencodePath.desc)
       .addText((t) => t.setValue(s.opencodePath)
         .onChange(async (v) => {
           const trimmed = v.trim();
@@ -36,33 +41,36 @@ export class CopsidianSettingsTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName('Reconnect')
-      .setDesc('Re-establish connection to OpenCode')
-      .addButton((b) => b.setButtonText('Reconnect').setCta()
-        .onClick(async () => { await this.plugin.initClient(); new Notice('Reconnected'); }));
+      .setName(labels.reconnect.name)
+      .setDesc(labels.reconnect.desc)
+      .addButton((b) => b.setButtonText(labels.reconnect.button).setCta()
+        .onClick(async () => {
+          const connected = await this.plugin.initClient();
+          new Notice(connected ? locale().settings.reconnect.success : locale().settings.reconnect.failed);
+        }));
 
     new Setting(containerEl)
-      .setName('Autostart OpenCode')
-      .setDesc('Connect to OpenCode when Obsidian starts')
+      .setName(labels.autostart.name)
+      .setDesc(labels.autostart.desc)
       .addToggle((t) => t.setValue(s.autoConnect ?? true)
         .onChange(async (v) => { s.autoConnect = v; await this.save(); }));
 
     // ── Agent ──
-    new Setting(containerEl).setName('Agent').setHeading();
+    new Setting(containerEl).setName(labels.agent).setHeading();
 
     new Setting(containerEl)
-      .setName('Default Agent')
+      .setName(labels.defaultAgent)
       .addDropdown((d) => d.addOptions({ build: 'build', plan: 'plan', docs: 'docs' })
         .setValue(s.defaultAgent)
         .onChange(async (v) => { s.defaultAgent = v; await this.save(); }));
 
     new Setting(containerEl)
-      .setName('Permission Mode')
-      .setDesc('Auto-approve behavior for tool permissions')
+      .setName(labels.permissionMode.name)
+      .setDesc(labels.permissionMode.desc)
       .addDropdown((d) => d.addOptions({
-        yolo: 'Yolo — auto-approve all',
-        plan: 'Plan — auto-approve safe',
-        safe: 'Safe — confirm all',
+        yolo: labels.permissionMode.yolo,
+        plan: labels.permissionMode.plan,
+        safe: labels.permissionMode.safe,
       })
         .setValue(s.permissionMode)
         .onChange(async (v) => {
@@ -72,13 +80,13 @@ export class CopsidianSettingsTab extends PluginSettingTab {
         }));
 
     // ── System Prompt ──
-    new Setting(containerEl).setName('System Prompt').setHeading();
+    new Setting(containerEl).setName(labels.systemPrompt.heading).setHeading();
 
     new Setting(containerEl)
-      .setName('Custom System Prompt')
-      .setDesc('Additional instructions injected into the agent system prompt')
+      .setName(labels.systemPrompt.name)
+      .setDesc(labels.systemPrompt.desc)
       .addTextArea((c) => {
-        c.setPlaceholder('Enter custom system prompt instructions...');
+        c.setPlaceholder(labels.systemPrompt.placeholder);
         c.inputEl.rows = 6;
         c.inputEl.classList.add('copsidian-prompt-input');
         c.onChange(async (v) => {
@@ -88,26 +96,26 @@ export class CopsidianSettingsTab extends PluginSettingTab {
       });
 
     // ── Notes & Context ──
-    new Setting(containerEl).setName('Notes & Context').setHeading();
+    new Setting(containerEl).setName(labels.notes.heading).setHeading();
 
     new Setting(containerEl)
-      .setName('Default Sync Folder')
-      .setDesc('Folder where sync notes are created')
+      .setName(labels.notes.defaultSyncFolder)
+      .setDesc(labels.notes.defaultSyncFolderDesc)
       .addText((t) => t.setValue(s.defaultNoteFolder)
         .onChange(async (v) => { s.defaultNoteFolder = v; await this.save(); }));
 
     new Setting(containerEl)
-      .setName('Max Note Reference Size')
-      .setDesc('Maximum bytes when reading a referenced note (default 8000)')
+      .setName(labels.notes.maxNoteSize)
+      .setDesc(labels.notes.maxNoteSizeDesc)
       .addText((t) => t.setValue(String(s.maxNoteSize))
         .setPlaceholder('8000')
         .onChange(async (v) => {
           const n = parseInt(v, 10);
-          if (!isNaN(n) && n > 0) { s.maxNoteSize = n; await this.save(); new Notice('Setting saved'); }
+          if (!isNaN(n) && n > 0) { s.maxNoteSize = n; await this.save(); new Notice(locale().settings.notes.saved); }
         }));
 
     // ── MCP Servers ──
-    new Setting(containerEl).setName('MCP Servers').setHeading();
+    new Setting(containerEl).setName(labels.mcp.heading).setHeading();
 
     for (const server of s.mcpServers) {
       this.addMcpServerBlock(containerEl, server);
@@ -115,7 +123,7 @@ export class CopsidianSettingsTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('')
-      .addButton((b) => b.setButtonText('+ Add MCP Server')
+      .addButton((b) => b.setButtonText(labels.mcp.add)
         .onClick(async () => {
           const server: McpServerConfig = {
             id: Date.now().toString(),
@@ -130,7 +138,7 @@ export class CopsidianSettingsTab extends PluginSettingTab {
         }));
 
     // ── Sync Rules ──
-    new Setting(containerEl).setName('Sync Rules').setHeading();
+    new Setting(containerEl).setName(labels.sync.heading).setHeading();
 
     for (const rule of s.syncRules) {
       this.addSyncRuleBlock(containerEl, rule);
@@ -138,7 +146,7 @@ export class CopsidianSettingsTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('')
-      .addButton((b) => b.setButtonText('+ Add Rule')
+      .addButton((b) => b.setButtonText(labels.sync.add)
         .onClick(async () => {
           const rule: SyncRule = {
             id: Date.now().toString(),
@@ -153,18 +161,24 @@ export class CopsidianSettingsTab extends PluginSettingTab {
         }));
 
     // ── Appearance ──
-    new Setting(containerEl).setName('Appearance').setHeading();
+    new Setting(containerEl).setName(labels.appearance.heading).setHeading();
 
     new Setting(containerEl)
-      .setName('Language')
-      .setDesc('UI language (requires restart to apply to open views)')
+      .setName(labels.appearance.language)
+      .setDesc(labels.appearance.languageDesc)
       .addDropdown((d) => d.addOptions({ en: 'English', zh: '中文' })
         .setValue(s.language)
-        .onChange(async (v) => { s.language = v; setLocale(v); await this.save(); }));
+        .onChange(async (v) => {
+          s.language = v;
+          setLocale(v);
+          await this.save();
+          this.refreshOpenViewsLocale();
+          this.display();
+        }));
 
     new Setting(containerEl)
-      .setName('Auto-scroll')
-      .setDesc('Automatically scroll to bottom on new messages')
+      .setName(labels.appearance.autoScroll)
+      .setDesc(labels.appearance.autoScrollDesc)
       .addToggle((t) => t.setValue(s.autoScrollEnabled ?? true)
         .onChange(async (v) => {
           s.autoScrollEnabled = v;
@@ -179,11 +193,11 @@ export class CopsidianSettingsTab extends PluginSettingTab {
         }));
 
     // ── Session Limits ──
-    new Setting(containerEl).setName('Session Limits').setHeading();
+    new Setting(containerEl).setName(labels.sessionLimits.heading).setHeading();
 
     new Setting(containerEl)
-      .setName('Max Messages per Session')
-      .setDesc('Truncate sessions when they exceed this limit (default 200)')
+      .setName(labels.sessionLimits.maxMessages)
+      .setDesc(labels.sessionLimits.maxMessagesDesc)
       .addText((t) => t.setValue(String(s.maxSessionMessages ?? 200))
         .setPlaceholder('200')
         .onChange(async (v) => {
@@ -195,8 +209,8 @@ export class CopsidianSettingsTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName('Session Retention Days')
-      .setDesc('Remove empty sessions older than this (default 30)')
+      .setName(labels.sessionLimits.retentionDays)
+      .setDesc(labels.sessionLimits.retentionDaysDesc)
       .addText((t) => t.setValue(String(s.sessionRetentionDays ?? 30))
         .setPlaceholder('30')
         .onChange(async (v) => {
@@ -209,11 +223,12 @@ export class CopsidianSettingsTab extends PluginSettingTab {
   }
 
   private addSyncRuleBlock(containerEl: HTMLElement, rule: SyncRule): void {
+    const labels = locale().settings.sync;
     const block = containerEl.createDiv({ cls: 'copsidian-sync-rule' });
-    block.createEl('strong', { text: `Rule: ${rule.toolName}` });
+    block.createEl('strong', { text: labels.label.replace('{tool}', rule.toolName) });
 
     new Setting(block)
-      .setName('Tool')
+      .setName(labels.tool)
       .addDropdown((d) => d.addOptions({
         read: 'read',
         edit: 'edit',
@@ -228,17 +243,17 @@ export class CopsidianSettingsTab extends PluginSettingTab {
         .onChange(async (v) => { rule.toolName = v; await this.save(); }));
 
     new Setting(block)
-      .setName('Folder')
+      .setName(labels.folder)
       .addText((t) => t.setValue(rule.folder)
         .onChange(async (v) => { rule.folder = v; await this.save(); }));
 
     new Setting(block)
-      .setName('Filename Template')
-      .setDesc('Variables: {{tool}}, {{date}}, {{shortId}}')
+      .setName(labels.filenameTemplate)
+      .setDesc(labels.filenameTemplateDesc)
       .addText((t) => t.setValue(rule.filenameTemplate)
         .onChange(async (v) => { rule.filenameTemplate = v; await this.save(); }));
 
-    const delBtn = block.createEl('button', { text: 'Delete', cls: 'mod-warning' });
+    const delBtn = block.createEl('button', { text: labels.delete, cls: 'mod-warning' });
     delBtn.onclick = async () => {
       this.plugin.settings.syncRules = this.plugin.settings.syncRules.filter((r: SyncRule) => r.id !== rule.id);
       await this.save();
@@ -247,29 +262,30 @@ export class CopsidianSettingsTab extends PluginSettingTab {
   }
 
   private addMcpServerBlock(containerEl: HTMLElement, server: McpServerConfig): void {
+    const labels = locale().settings.mcp;
     const block = containerEl.createDiv({ cls: 'copsidian-mcp-server' });
-    block.createEl('strong', { text: `MCP: ${server.name || 'Unnamed server'}` });
+    block.createEl('strong', { text: labels.label.replace('{name}', server.name || labels.unnamed) });
 
     new Setting(block)
-      .setName('Enabled')
+      .setName(labels.enabled)
       .addToggle((toggle) => toggle.setValue(server.enabled)
         .onChange(async (value) => { server.enabled = value; await this.save(); }));
 
     new Setting(block)
-      .setName('Name')
-      .setDesc('Unique server name passed to OpenCode')
+      .setName(labels.name)
+      .setDesc(labels.nameDesc)
       .addText((text) => text.setValue(server.name)
         .onChange(async (value) => { server.name = value.trim(); await this.save(); }));
 
     new Setting(block)
-      .setName('Command')
-      .setDesc('Executable command, for example npx or uvx')
+      .setName(labels.command)
+      .setDesc(labels.commandDesc)
       .addText((text) => text.setValue(server.command)
         .onChange(async (value) => { server.command = value.trim(); await this.save(); }));
 
     new Setting(block)
-      .setName('Arguments')
-      .setDesc('One argument per line')
+      .setName(labels.args)
+      .setDesc(labels.argsDesc)
       .addTextArea((text) => {
         text.setValue(server.args.join('\n'));
         text.inputEl.rows = 4;
@@ -280,7 +296,7 @@ export class CopsidianSettingsTab extends PluginSettingTab {
         });
       });
 
-    const delBtn = block.createEl('button', { text: 'Delete', cls: 'mod-warning' });
+    const delBtn = block.createEl('button', { text: locale().settings.sync.delete, cls: 'mod-warning' });
     delBtn.onclick = async () => {
       this.plugin.settings.mcpServers = this.plugin.settings.mcpServers.filter((item) => item.id !== server.id);
       await this.save();
@@ -292,11 +308,19 @@ export class CopsidianSettingsTab extends PluginSettingTab {
     await this.plugin.savePluginData();
   }
 
+  private refreshOpenViewsLocale(): void {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+    for (const leaf of leaves) {
+      const view = leaf.view as LocaleAwareView;
+      view.refreshLocale?.();
+    }
+  }
+
   private validateOpencodePath(path: string): boolean {
     if (!path) return false;
     if (isAbsolute(path) || path.includes('/') || path.includes('\\')) {
       if (existsSync(path)) return true;
-      new Notice(`Warning: opencode path "${path}" not found`);
+      new Notice(locale().settings.opencodePath.notFound.replace('{path}', path));
       return false;
     }
 
@@ -305,7 +329,7 @@ export class CopsidianSettingsTab extends PluginSettingTab {
       .split(delimiter)
       .some((dir) => executableNames.some((name) => existsSync(`${dir}/${name}`)));
 
-    if (!found) new Notice(`Warning: opencode path "${path}" not found`);
+    if (!found) new Notice(locale().settings.opencodePath.notFound.replace('{path}', path));
     return found;
   }
 }

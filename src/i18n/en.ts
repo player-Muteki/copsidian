@@ -24,6 +24,7 @@ const en = {
   session: {
     search: 'Search sessions…',
     empty: 'No sessions found',
+    defaultTitle: 'Chat {time}',
   },
 
   reconnect: {
@@ -74,11 +75,128 @@ const en = {
   },
 
   toolbar: {
+    send: 'Send',
+    stop: 'Stop',
+    modelTitle: 'Model',
+    agentTitle: 'Agent mode',
+    effortTitle: 'Thinking effort',
+    noModels: 'No models',
     effort: {
       default: 'Default',
       low: 'Low',
       medium: 'Medium',
       high: 'High',
+    },
+  },
+
+  notice: {
+    noSelection: 'No text selected',
+    connected: 'Copsidian connected',
+    connectFailed: 'Failed to connect to OpenCode',
+  },
+
+  usage: {
+    model: 'Model',
+    input: 'Input',
+    output: 'Output',
+    thinking: 'Thinking',
+  },
+
+  sync: {
+    ruleFailed: 'Sync rule "{rule}" failed: {error}',
+  },
+
+  inlineEdit: {
+    title: 'AI Edit Preview',
+    apply: 'Apply',
+    discard: 'Discard',
+    prompt: 'Please edit and improve the following text. Respond with ONLY the edited text, no explanations:\n\n{text}',
+  },
+
+  acp: {
+    processExited: 'OpenCode process exited with code {code}',
+    unknownCode: 'unknown',
+    stdinNotWritable: 'OpenCode process stdin is not writable',
+    requestTimeout: 'Request timeout (5 minutes)',
+  },
+
+  settings: {
+    connection: 'Connection',
+    opencodePath: {
+      name: 'OpenCode CLI Path',
+      desc: 'Path to opencode executable (use "opencode" for PATH)',
+      notFound: 'Warning: opencode path "{path}" not found',
+    },
+    reconnect: {
+      name: 'Reconnect',
+      desc: 'Re-establish connection to OpenCode',
+      button: 'Reconnect',
+      success: 'Reconnected',
+      failed: 'Failed to reconnect',
+    },
+    autostart: {
+      name: 'Autostart OpenCode',
+      desc: 'Connect to OpenCode when Obsidian starts',
+    },
+    agent: 'Agent',
+    defaultAgent: 'Default Agent',
+    permissionMode: {
+      name: 'Permission Mode',
+      desc: 'Auto-approve behavior for tool permissions',
+      yolo: 'Yolo — auto-approve all',
+      plan: 'Plan — auto-approve safe',
+      safe: 'Safe — confirm all',
+    },
+    systemPrompt: {
+      heading: 'System Prompt',
+      name: 'Custom System Prompt',
+      desc: 'Additional instructions injected into the agent system prompt',
+      placeholder: 'Enter custom system prompt instructions...',
+    },
+    notes: {
+      heading: 'Notes & Context',
+      defaultSyncFolder: 'Default Sync Folder',
+      defaultSyncFolderDesc: 'Folder where sync notes are created',
+      maxNoteSize: 'Max Note Reference Size',
+      maxNoteSizeDesc: 'Maximum bytes when reading a referenced note (default 8000)',
+      saved: 'Setting saved',
+    },
+    mcp: {
+      heading: 'MCP Servers',
+      add: '+ Add MCP Server',
+      label: 'MCP: {name}',
+      unnamed: 'Unnamed server',
+      enabled: 'Enabled',
+      name: 'Name',
+      nameDesc: 'Unique server name passed to OpenCode',
+      command: 'Command',
+      commandDesc: 'Executable command, for example npx or uvx',
+      args: 'Arguments',
+      argsDesc: 'One argument per line',
+    },
+    sync: {
+      heading: 'Sync Rules',
+      add: '+ Add Rule',
+      label: 'Rule: {tool}',
+      tool: 'Tool',
+      folder: 'Folder',
+      filenameTemplate: 'Filename Template',
+      filenameTemplateDesc: 'Variables: {{tool}}, {{date}}, {{shortId}}',
+      delete: 'Delete',
+    },
+    appearance: {
+      heading: 'Appearance',
+      language: 'Language',
+      languageDesc: 'UI language',
+      autoScroll: 'Auto-scroll',
+      autoScrollDesc: 'Automatically scroll to bottom on new messages',
+    },
+    sessionLimits: {
+      heading: 'Session Limits',
+      maxMessages: 'Max Messages per Session',
+      maxMessagesDesc: 'Truncate sessions when they exceed this limit (default 200)',
+      retentionDays: 'Session Retention Days',
+      retentionDaysDesc: 'Remove empty sessions older than this (default 30)',
     },
   },
 };

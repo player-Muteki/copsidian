@@ -26,6 +26,7 @@ const zh: Locale = {
   session: {
     search: '搜索会话…',
     empty: '未找到会话',
+    defaultTitle: '会话 {time}',
   },
 
   reconnect: {
@@ -76,11 +77,128 @@ const zh: Locale = {
   },
 
   toolbar: {
+    send: '发送',
+    stop: '停止',
+    modelTitle: '模型',
+    agentTitle: 'Agent 模式',
+    effortTitle: '思考强度',
+    noModels: '无可用模型',
     effort: {
       default: '默认',
       low: '低',
       medium: '中',
       high: '高',
+    },
+  },
+
+  notice: {
+    noSelection: '未选择文本',
+    connected: 'Copsidian 已连接',
+    connectFailed: '连接 OpenCode 失败',
+  },
+
+  usage: {
+    model: '模型',
+    input: '输入',
+    output: '输出',
+    thinking: '思考',
+  },
+
+  sync: {
+    ruleFailed: '同步规则“{rule}”失败：{error}',
+  },
+
+  inlineEdit: {
+    title: 'AI 编辑预览',
+    apply: '应用',
+    discard: '放弃',
+    prompt: '请编辑并改进以下文本。只返回编辑后的文本，不要解释：\n\n{text}',
+  },
+
+  acp: {
+    processExited: 'OpenCode 进程已退出，退出码：{code}',
+    unknownCode: '未知',
+    stdinNotWritable: 'OpenCode 进程 stdin 不可写',
+    requestTimeout: '请求超时（5 分钟）',
+  },
+
+  settings: {
+    connection: '连接',
+    opencodePath: {
+      name: 'OpenCode CLI 路径',
+      desc: 'opencode 可执行文件路径（使用 "opencode" 表示从 PATH 查找）',
+      notFound: '警告：未找到 opencode 路径 "{path}"',
+    },
+    reconnect: {
+      name: '重新连接',
+      desc: '重新建立与 OpenCode 的连接',
+      button: '重新连接',
+      success: '已重新连接',
+      failed: '重新连接失败',
+    },
+    autostart: {
+      name: '自动启动 OpenCode',
+      desc: 'Obsidian 启动时连接 OpenCode',
+    },
+    agent: 'Agent',
+    defaultAgent: '默认 Agent',
+    permissionMode: {
+      name: '权限模式',
+      desc: '工具权限的自动批准行为',
+      yolo: 'Yolo — 全部自动批准',
+      plan: 'Plan — 自动批准安全操作',
+      safe: 'Safe — 全部确认',
+    },
+    systemPrompt: {
+      heading: '系统提示词',
+      name: '自定义系统提示词',
+      desc: '注入 Agent 的额外指令',
+      placeholder: '输入自定义系统提示词...',
+    },
+    notes: {
+      heading: '笔记与上下文',
+      defaultSyncFolder: '默认同步文件夹',
+      defaultSyncFolderDesc: '同步笔记的创建位置',
+      maxNoteSize: '最大笔记引用大小',
+      maxNoteSizeDesc: '读取引用笔记时的最大字节数（默认 8000）',
+      saved: '设置已保存',
+    },
+    mcp: {
+      heading: 'MCP 服务器',
+      add: '+ 添加 MCP 服务器',
+      label: 'MCP：{name}',
+      unnamed: '未命名服务器',
+      enabled: '启用',
+      name: '名称',
+      nameDesc: '传递给 OpenCode 的唯一服务器名称',
+      command: '命令',
+      commandDesc: '可执行命令，例如 npx 或 uvx',
+      args: '参数',
+      argsDesc: '每行一个参数',
+    },
+    sync: {
+      heading: '同步规则',
+      add: '+ 添加规则',
+      label: '规则：{tool}',
+      tool: '工具',
+      folder: '文件夹',
+      filenameTemplate: '文件名模板',
+      filenameTemplateDesc: '变量：{{tool}}、{{date}}、{{shortId}}',
+      delete: '删除',
+    },
+    appearance: {
+      heading: '外观',
+      language: '语言',
+      languageDesc: '界面语言',
+      autoScroll: '自动滚动',
+      autoScrollDesc: '有新消息时自动滚动到底部',
+    },
+    sessionLimits: {
+      heading: '会话限制',
+      maxMessages: '每个会话最大消息数',
+      maxMessagesDesc: '会话超过此限制时自动截断（默认 200）',
+      retentionDays: '会话保留天数',
+      retentionDaysDesc: '移除超过此天数的空会话（默认 30）',
     },
   },
 };
