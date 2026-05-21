@@ -71,4 +71,10 @@ describe('buildSyncNote', () => {
     const result = buildSyncNote(ctx, 'folder', 'note');
     expect(result.content).toContain('(no output)');
   });
+
+  it('should serialize non-string tool output', () => {
+    const ctx = { toolCallId: 'abc', toolName: 'read', toolStatus: 'completed', rawOutput: { output: { ok: true } } };
+    const result = buildSyncNote(ctx, 'folder', 'note');
+    expect(result.content).toContain('"ok": true');
+  });
 });

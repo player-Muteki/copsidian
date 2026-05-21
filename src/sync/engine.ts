@@ -5,7 +5,7 @@ import { ruleMatches, buildSyncNote } from './templates';
 export class SyncEngine {
   constructor(private vault: Vault, private rules: SyncRule[]) {}
 
-  private isTFile(file: any): file is TFile {
+  private isTFile(file: unknown): file is TFile {
     return file instanceof Object && 'vault' in file && 'extension' in file;
   }
 
@@ -29,8 +29,13 @@ export class SyncEngine {
 
   private async ensureFolder(folder: string): Promise<void> {
     if (!folder || folder === '/') return;
-    const existing = this.vault.getAbstractFileByPath(folder);
-    if (existing) return;
-    await this.vault.createFolder(folder);
+    const parts = folder.split('/').filter(Boolean);
+    let current = '';
+
+    for (const part of parts) {
+      current = current ? `${current}/${part}` : part;
+      if (this.vault.getAbstractFileByPath(current)) continue;
+      await this.vault.createFolder(current);
+    }
   }
 }
