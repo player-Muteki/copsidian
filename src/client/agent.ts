@@ -13,9 +13,10 @@ import type {
 import type { OpencodeClient, ClientHandlers } from './index';
 import type { SessionMeta } from '../types';
 import { AcpClient } from './acp';
+import { t } from '../i18n/index';
 
 export class AgentRuntime implements OpencodeClient {
-  permissionMode = 'yolo';
+  permissionMode = 'safe';
 
   constructor(private acp: AcpClient) {}
 
@@ -40,7 +41,7 @@ export class AgentRuntime implements OpencodeClient {
     return new Promise<AcpResponse>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.acp.cancel(id).catch(() => {});
-        reject(new Error('Request timeout (5 minutes)'));
+        reject(new Error(t().acp.requestTimeout));
       }, timeoutMs);
 
       this.acp.sendMessage(id, parts, handler)
@@ -58,7 +59,7 @@ export class AgentRuntime implements OpencodeClient {
   setClientHandlers(handlers: ClientHandlers): void {
     this.acp.onClose = handlers.onClose ?? undefined;
     this.acp.onReconnect = handlers.onReconnect ?? undefined;
-    this.acp.onPermissionRequest = handlers.onPermissionRequest ?? undefined;
+    this.acp.onPermissionRequest = handlers.onPermissionRequest ?? ((req) => this.requestPermission(req));
   }
 
   cancel(id: string): Promise<void> { return this.acp.cancel(id); }
@@ -78,7 +79,8 @@ export class AgentRuntime implements OpencodeClient {
       const reject = req.options.find((o) => o.kind === 'reject_once');
       if (reject) return reject.optionId;
     }
-    return this.acp.requestPermission(req);
+    const reject = req.options.find((o) => o.kind === 'reject_once');
+    return reject?.optionId ?? req.options[0]?.optionId ?? 'reject_once';
   }
 
   getAvailableAgents(): Promise<ModeOption[]> { return this.acp.getAvailableAgents(); }

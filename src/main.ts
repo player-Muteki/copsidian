@@ -6,6 +6,7 @@ import { CopsidianSettingsTab } from './settings';
 import { DEFAULT_SETTINGS, VIEW_TYPE } from './types';
 import type { CopsidianSettings, SerializedSession, SerializedMessage, PluginData } from './types';
 import { getVaultPath } from './utils/vault';
+import { setLocale, t } from './i18n/index';
 
 interface WorkspaceWithSideLeaf {
   ensureSideLeaf?: (
@@ -20,17 +21,24 @@ export default class CopsidianPlugin extends Plugin {
   client: AgentRuntime | null = null;
   sessions: Map<string, SerializedSession> = new Map();
   activeSessionId: string | null = null;
-  private clientReadyResolvers: Array<() => void> = [];
+  private clientReadyResolvers: Array<(ready: boolean) => void> = [];
   private _clientReady = false;
+  private connecting: Promise<boolean> | null = null;
 
   /** Resolves when the first successful connection is established. */
-  waitForClient(): Promise<void> {
-    if (this._clientReady) return Promise.resolve();
+  waitForClient(): Promise<boolean> {
+    if (this._clientReady) return Promise.resolve(true);
     return new Promise((resolve) => this.clientReadyResolvers.push(resolve));
+  }
+
+  private resolveClientWaiters(ready: boolean): void {
+    for (const resolve of this.clientReadyResolvers) resolve(ready);
+    this.clientReadyResolvers = [];
   }
 
   override async onload(): Promise<void> {
     await this.loadPluginData();
+    setLocale(this.settings.language);
 
     this.registerView(VIEW_TYPE, (leaf) => new CopsidianView(leaf, this));
     this.addRibbonIcon('terminal-square', 'Open Copsidian', () => this.activateView());
@@ -145,7 +153,7 @@ export default class CopsidianPlugin extends Plugin {
   async aiEditSelection(editor: import('obsidian').Editor, _view: import('obsidian').MarkdownView | import('obsidian').MarkdownFileInfo): Promise<void> {
     const selected = editor.getSelection();
     if (!selected || selected.trim().length === 0) {
-      new Notice('No text selected');
+      new Notice(t().notice.noSelection);
       return;
     }
     await this.activateView();
@@ -178,19 +186,33 @@ export default class CopsidianPlugin extends Plugin {
     this.app.workspace.revealLeaf(leaf);
   }
 
-  async initClient(): Promise<void> {
+  async initClient(): Promise<boolean> {
+    if (this.connecting) return this.connecting;
+    this.connecting = this.connectClient();
+    try {
+      return await this.connecting;
+    } finally {
+      this.connecting = null;
+    }
+  }
+
+  private async connectClient(): Promise<boolean> {
     try {
       const acp = new AcpClient(this.settings.opencodePath, getVaultPath(this.app));
       await acp.connect();
       this.client = new AgentRuntime(acp);
       this.client.permissionMode = this.settings.permissionMode;
       this._clientReady = true;
-      for (const resolve of this.clientReadyResolvers) resolve();
-      this.clientReadyResolvers = [];
-      new Notice('Copsidian connected');
+      this.resolveClientWaiters(true);
+      new Notice(t().notice.connected);
+      return true;
     } catch (e) {
+      this._clientReady = false;
+      this.client = null;
+      this.resolveClientWaiters(false);
       console.error('[copsidian] Connect failed:', e);
-      new Notice('Failed to connect to OpenCode');
+      new Notice(t().notice.connectFailed);
+      return false;
     }
   }
 

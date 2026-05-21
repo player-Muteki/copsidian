@@ -16,6 +16,7 @@ import type {
 import type { OpencodeClient } from './index';
 import type { SessionMeta } from '../types';
 import type { AcpResponse } from '../types';
+import { t } from '../i18n/index';
 
 interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -248,6 +249,7 @@ export class AcpClient implements OpencodeClient {
     this.process.on('close', (code) => {
       this.connected = false;
       console.error('[copsidian] process exited with code:', code);
+      this.rejectPending(new Error(t().acp.processExited.replace('{code}', String(code ?? t().acp.unknownCode))));
       this.onClose?.();
 
       // Auto-reconnect if not intentional disconnect
@@ -258,6 +260,7 @@ export class AcpClient implements OpencodeClient {
     this.process.on('error', (e: unknown) => {
       this.connected = false;
       console.error('[copsidian] process:', e);
+      this.rejectPending(e instanceof Error ? e : new Error(String(e)));
       this.onClose?.();
     });
 
@@ -343,8 +346,8 @@ export class AcpClient implements OpencodeClient {
   }
 
   async requestPermission(req: PermissionRequest): Promise<string> {
-    const allow = req.options.find((o) => o.kind === 'allow_once' || o.kind === 'allow_always');
-    return allow?.optionId ?? req.options[0]?.optionId ?? 'allow_once';
+    const reject = req.options.find((o) => o.kind === 'reject_once');
+    return reject?.optionId ?? req.options[0]?.optionId ?? 'reject_once';
   }
 
   getAvailableAgents(): Promise<ModeOption[]> { return Promise.resolve([...this.availableModes]); }
@@ -492,19 +495,37 @@ export class AcpClient implements OpencodeClient {
     const req: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.send(req);
+      if (!this.send(req)) {
+        this.pending.delete(id);
+        reject(new Error(t().acp.stdinNotWritable));
+      }
     });
   }
 
-  private send(obj: object): void {
+  async reconnect(): Promise<void> {
+    await this.disconnect().catch(() => {});
+    this.isIntentionalDisconnect = false;
+    this.reconnectAttempts = 0;
+    await this.connect();
+  }
+
+  private send(obj: object): boolean {
     if (!this.process?.stdin?.writable) {
       console.error('[copsidian] ACP send failed: stdin not writable');
-      return;
+      return false;
     }
     const json = JSON.stringify(obj) + '\n';
     this.process.stdin.write(json, (err: unknown) => {
       if (err) console.error('[copsidian] ACP write error:', err);
     });
+    return true;
+  }
+
+  private rejectPending(error: Error): void {
+    for (const [, entry] of this.pending) {
+      entry.reject(error);
+    }
+    this.pending.clear();
   }
 
   private scheduleReconnect(): void {
@@ -512,7 +533,7 @@ export class AcpClient implements OpencodeClient {
     const delay = 2000 * this.reconnectAttempts; // Exponential backoff
     setTimeout(() => {
       if (!this.connected && this.onReconnect) {
-        this.onReconnect().then(() => {
+        this.reconnect().then(() => this.onReconnect?.()).then(() => {
           this.reconnectAttempts = 0;
         }).catch(() => {
           if (this.reconnectAttempts < this.maxReconnectAttempts) {
