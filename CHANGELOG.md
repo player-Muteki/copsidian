@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.5 - 2026-05-21
+
+### Fixed
+- Harden sync note generation for nested folders and non-string tool outputs
+- Tighten Obsidian workspace, view, and sync typings to remove unsafe production casts
+
+### Changed
+- Remove ACP connection debug logs from production runtime
+- Restore code block copy button labels through localized UI text
+
 ## 0.0.4 - 2026-05-21
 
 ### Added
