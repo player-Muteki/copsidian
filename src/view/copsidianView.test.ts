@@ -56,8 +56,29 @@ describe('CopsidianView inline edit preview', () => {
   });
 });
 
-function createView(): CopsidianView {
-  return new CopsidianView({} as never, createPlugin());
+describe('CopsidianView runtime session sync', () => {
+  it('loads restored sessions with configured MCP servers', async () => {
+    const mcpServers = [
+      { id: 'fs', enabled: true, name: 'filesystem', command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem'] },
+    ];
+    const client = {
+      getCurrentSessionId: vi.fn(() => 'other-session'),
+      loadSession: vi.fn().mockResolvedValue(undefined),
+    };
+    const view = createView({
+      app: { vault: { adapter: { getBasePath: () => '/vault' } } },
+      settings: { maxNoteSize: 8000, syncRules: [], mcpServers },
+      getClient: () => client,
+    } as unknown as CopsidianPlugin);
+
+    await Reflect.get(view, 'syncRuntimeSession').call(view, 'restored-session');
+
+    expect(client.loadSession).toHaveBeenCalledWith('restored-session', '/vault', mcpServers);
+  });
+});
+
+function createView(plugin = createPlugin()): CopsidianView {
+  return new CopsidianView({} as never, plugin);
 }
 
 function createPlugin(): CopsidianPlugin {

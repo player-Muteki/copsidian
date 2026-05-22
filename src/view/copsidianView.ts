@@ -103,7 +103,7 @@ export class CopsidianView extends ItemView {
 		const client = this.plugin.getClient();
 		if (!client) return;
 		if (client.getCurrentSessionId() === sessionId) return;
-		await client.loadSession(sessionId, this.getVaultCwd());
+		await client.loadSession(sessionId, this.getVaultCwd(), this.plugin.settings.mcpServers);
 	}
 
 	private async cancelActiveGeneration(): Promise<void> {
@@ -216,10 +216,6 @@ export class CopsidianView extends ItemView {
 			},
 		);
 
-		this.autocomplete = new Autocomplete(this.inputAreaEl, {
-			onSelect: (value: string, mode: '@' | '/') => this.handleACSelect(value, mode),
-		});
-
 		// ── Messages ──
 		this.messagesEl = el.createDiv({ cls: 'copsidian-messages' });
 		this.renderer = new ChatRenderer(this.messagesEl, this.plugin.app, () => this.state.autoScrollEnabled);
@@ -236,6 +232,9 @@ export class CopsidianView extends ItemView {
 			onToggleSlash: () => this.showAC('/'),
 			onAddRef: (ref: ContextRef) => this.addChip(ref, 'manual'),
 			onRemoveRef: (id: string) => this.removeChip(id),
+		});
+		this.autocomplete = new Autocomplete(this.inputAreaEl, {
+			onSelect: (value: string, mode: '@' | '/') => this.handleACSelect(value, mode),
 		});
 
 		// ── Toolbar (below input) ──
