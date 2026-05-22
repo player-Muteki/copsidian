@@ -333,24 +333,24 @@ export class CopsidianView extends ItemView {
 		this.closeAutocomplete();
 		this.unregisterKeybindings();
 		this.unregisterEventListeners();
-		this.contextChipsEl.remove();
+		this.contextChipsEl?.remove();
 		return Promise.resolve();
 	}
 
 	private unregisterEventListeners(): void {
-		if (this.scrollHandler) {
+		if (this.scrollHandler && this.messagesEl) {
 			this.messagesEl.removeEventListener('scroll', this.scrollHandler);
 			this.scrollHandler = null;
 		}
-		if (this.dragOverHandler) {
+		if (this.dragOverHandler && this.messagesEl) {
 			this.messagesEl.removeEventListener('dragover', this.dragOverHandler);
 			this.dragOverHandler = null;
 		}
-		if (this.dragLeaveHandler) {
+		if (this.dragLeaveHandler && this.messagesEl) {
 			this.messagesEl.removeEventListener('dragleave', this.dragLeaveHandler);
 			this.dragLeaveHandler = null;
 		}
-		if (this.dropHandler) {
+		if (this.dropHandler && this.messagesEl) {
 			this.messagesEl.removeEventListener('drop', this.dropHandler);
 			this.dropHandler = null;
 		}

@@ -77,6 +77,14 @@ describe('CopsidianView runtime session sync', () => {
   });
 });
 
+describe('CopsidianView cleanup', () => {
+  it('closes safely before the view finishes opening', async () => {
+    const view = createView();
+
+    await expect(view.onClose()).resolves.toBeUndefined();
+  });
+});
+
 function createView(plugin = createPlugin()): CopsidianView {
   return new CopsidianView({} as never, plugin);
 }
