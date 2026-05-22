@@ -90,6 +90,9 @@ Language changes apply immediately to the settings tab and open Copsidian views,
 |---------|-------------|---------|
 | OpenCode CLI Path | Path to the `opencode` executable | `opencode` |
 | Default Agent | Agent mode on startup (`build` / `plan` / `docs`) | `build` |
+| Default Model | Model selected for new OpenCode sessions | — |
+| Common Models | Models shown in the chat toolbar when selected in Settings | — |
+| Custom Agents & Skills | Local prompt profiles and reusable skill instructions injected into chat prompts | — |
 | Permission Mode | `yolo` (auto-approve all) / `plan` (approve safe ops) / `safe` (confirm all) | `safe` |
 | Custom System Prompt | Additional instructions injected into the agent | — |
 | Default Sync Folder | Folder where sync notes are created | `opencode-sync` |
@@ -100,6 +103,8 @@ Language changes apply immediately to the settings tab and open Copsidian views,
 | MCP Servers | Local stdio MCP server definitions (name → command → args) passed to new OpenCode sessions | — |
 | Language | UI language (`en` / `zh`) | `en` |
 | Auto Connect | Connect to OpenCode on Obsidian startup | `true` |
+
+Runtime agents, models, and available commands/skills load automatically when Settings opens. If OpenCode has not reported runtime options yet, Copsidian briefly opens and closes a metadata session to hydrate the lists, then refreshes Settings.
 
 ## Keyboard Shortcuts
 
@@ -302,6 +307,9 @@ Licensed under the [MIT License](LICENSE).
 |--------|------|--------|
 | OpenCode CLI 路径 | `opencode` 可执行文件路径 | `opencode` |
 | 默认 Agent | 启动时的 Agent 模式（`build` / `plan` / `docs`） | `build` |
+| 默认模型 | 新建 OpenCode 会话时选择的模型 | — |
+| 常用模型 | 在设置中勾选后显示在聊天工具栏中的模型 | — |
+| 自定义 Agent 与技能 | 本地提示词配置和可复用技能指令，会注入对话提示词 | — |
 | 权限模式 | `yolo`（全部自动批准）/ `plan`（批准安全操作）/ `safe`（逐一确认） | `safe` |
 | 自定义系统提示词 | 注入 Agent 的额外指令 | — |
 | 默认同步文件夹 | 同步笔记的创建位置 | `opencode-sync` |
@@ -312,6 +320,8 @@ Licensed under the [MIT License](LICENSE).
 | MCP 服务器 | 本地 stdio MCP 服务器定义（名称 → 命令 → 参数），用于新建 OpenCode 会话 | — |
 | 界面语言 | UI 语言（`en` / `zh`） | `en` |
 | 自动连接 | Obsidian 启动时自动连接 OpenCode | `true` |
+
+设置页打开时会自动载入运行时 Agent、模型和可用命令/技能。如果 OpenCode 尚未返回运行时选项，Copsidian 会短暂创建并关闭一个元数据会话来触发列表加载，然后刷新设置页。
 
 ## 键盘快捷键
 
