@@ -34,13 +34,173 @@ describe('CopsidianSettingsTab locale refresh', () => {
     expect(tab.containerEl.textContent).toContain('语言');
     expect(tab.containerEl.textContent).not.toContain('Connection');
   });
+
+  it('adds custom agents and skills from settings', async () => {
+    setLocale('en');
+    const plugin = createPlugin({ refreshLocale: vi.fn() });
+    const tab = new CopsidianSettingsTab(plugin);
+
+    tab.display();
+    const addAgent = [...tab.containerEl.querySelectorAll('button')]
+      .find((button) => button.textContent === '+ Add Custom Agent') as HTMLButtonElement | undefined;
+    const addSkill = [...tab.containerEl.querySelectorAll('button')]
+      .find((button) => button.textContent === '+ Add Custom Skill') as HTMLButtonElement | undefined;
+
+    expect(addAgent).toBeDefined();
+    expect(addSkill).toBeDefined();
+    addAgent!.click();
+    addSkill!.click();
+    await flushPromises();
+
+    expect(plugin.settings.customAgents).toHaveLength(1);
+    expect(plugin.settings.customSkills).toHaveLength(1);
+    expect(plugin.settings.customAgents[0].name).toBe('New Agent');
+    expect(plugin.settings.customSkills[0].name).toBe('New Skill');
+    expect(plugin.savePluginData).toHaveBeenCalledTimes(2);
+  });
+
+  it('renames custom agent and skill IDs while preserving references', async () => {
+    setLocale('en');
+    const plugin = createPlugin({ refreshLocale: vi.fn() });
+    plugin.settings.customSkills.push({ id: 'writer', enabled: true, name: 'Writer', description: '', instructions: 'Write.' });
+    plugin.settings.customAgents.push({
+      id: 'planner',
+      enabled: true,
+      name: 'Planner',
+      description: '',
+      instructions: 'Plan.',
+      skillIds: ['writer'],
+    });
+    plugin.settings.activeCustomAgentId = 'planner';
+    const tab = new CopsidianSettingsTab(plugin);
+
+    tab.display();
+    const inputs = [...tab.containerEl.querySelectorAll('input')];
+    const agentIdInput = inputs.find((input) => input.value === 'planner');
+    const skillIdInput = inputs.filter((input) => input.value === 'writer').at(-1);
+    expect(agentIdInput).toBeDefined();
+    expect(skillIdInput).toBeDefined();
+
+    agentIdInput!.value = 'researcher';
+    agentIdInput!.dispatchEvent(new Event('change'));
+    skillIdInput!.value = 'editor';
+    skillIdInput!.dispatchEvent(new Event('change'));
+    await flushPromises();
+
+    expect(plugin.settings.customAgents[0].id).toBe('researcher');
+    expect(plugin.settings.activeCustomAgentId).toBe('researcher');
+    expect(plugin.settings.customSkills[0].id).toBe('editor');
+    expect(plugin.settings.customAgents[0].skillIds).toEqual(['editor']);
+  });
+
+  it('rejects duplicate custom agent and skill IDs', async () => {
+    setLocale('en');
+    const plugin = createPlugin({ refreshLocale: vi.fn() });
+    plugin.settings.customSkills.push(
+      { id: 'writer', enabled: true, name: 'Writer', description: '', instructions: 'Write.' },
+      { id: 'editor', enabled: true, name: 'Editor', description: '', instructions: 'Edit.' },
+    );
+    plugin.settings.customAgents.push(
+      { id: 'planner', enabled: true, name: 'Planner', description: '', instructions: 'Plan.', skillIds: ['writer'] },
+      { id: 'researcher', enabled: true, name: 'Researcher', description: '', instructions: 'Research.', skillIds: [] },
+    );
+    const tab = new CopsidianSettingsTab(plugin);
+
+    tab.display();
+    const inputs = [...tab.containerEl.querySelectorAll('input')];
+    const plannerInput = inputs.find((input) => input.value === 'planner');
+    const writerInput = inputs.filter((input) => input.value === 'writer').at(-1);
+    expect(plannerInput).toBeDefined();
+    expect(writerInput).toBeDefined();
+
+    plannerInput!.value = 'researcher';
+    plannerInput!.dispatchEvent(new Event('change'));
+    writerInput!.value = 'editor';
+    writerInput!.dispatchEvent(new Event('change'));
+    await flushPromises();
+
+    expect(plugin.settings.customAgents.map((agent) => agent.id)).toEqual(['planner', 'researcher']);
+    expect(plugin.settings.customSkills.map((skill) => skill.id)).toEqual(['writer', 'editor']);
+  });
+
+  it('loads agents and models into settings and saves common model choices', async () => {
+    setLocale('en');
+    const refreshedView = { refreshLocale: vi.fn(), loadToolbarOptions: vi.fn() };
+    const plugin = createPlugin(refreshedView, {
+      availableModes: [
+        { id: 'build', name: 'Build' },
+        { id: 'docs', name: 'Docs' },
+      ],
+      availableModels: [
+        { modelId: 'openai/gpt', name: 'GPT' },
+        { modelId: 'anthropic/claude', name: 'Claude' },
+      ],
+      availableCommands: [
+        { name: 'skill-writer', description: 'Write with context' },
+      ],
+    });
+    const tab = new CopsidianSettingsTab(plugin);
+
+    tab.display();
+    const selects = [...tab.containerEl.querySelectorAll('select')];
+    const agentSelect = selects.find((select) => [...select.options].some((option) => option.value === 'docs'));
+    const modelSelect = selects.find((select) => [...select.options].some((option) => option.value === 'openai/gpt'));
+    expect(agentSelect).toBeDefined();
+    expect(modelSelect).toBeDefined();
+    expect(tab.containerEl.textContent).toContain('Common Models');
+    expect(tab.containerEl.textContent).toContain('Custom Skills');
+    expect(tab.containerEl.textContent).toContain('Loaded Skills');
+    expect(tab.containerEl.textContent).toContain('skill-writer');
+
+    const modelToggle = [...tab.containerEl.querySelectorAll('input[type="checkbox"]')]
+      .find((input) => input.closest('.setting-item')?.textContent?.includes('GPT')) as HTMLInputElement | undefined;
+    expect(modelToggle).toBeDefined();
+    modelToggle!.checked = true;
+    modelToggle!.dispatchEvent(new Event('change'));
+    await flushPromises();
+
+    expect(plugin.settings.commonModels).toEqual(['openai/gpt']);
+    expect(refreshedView.loadToolbarOptions).toHaveBeenCalled();
+  });
+
+  it('actively loads runtime options after settings opens with an empty snapshot', async () => {
+    setLocale('en');
+    const plugin = createPlugin({ refreshLocale: vi.fn() }, {}, {
+      availableModes: [{ id: 'docs', name: 'Docs' }],
+      availableModels: [{ modelId: 'openai/gpt', name: 'GPT' }],
+      availableCommands: [{ name: 'skill-writer', description: 'Write with context' }],
+    });
+    const tab = new CopsidianSettingsTab(plugin);
+
+    tab.display();
+    expect(tab.containerEl.textContent).not.toContain('skill-writer');
+    await flushPromises();
+    await flushPromises();
+
+    expect(plugin.initClient).toHaveBeenCalled();
+    expect(tab.containerEl.textContent).toContain('skill-writer');
+    expect([...tab.containerEl.querySelectorAll('select')]
+      .some((select) => [...select.options].some((option) => option.value === 'openai/gpt'))).toBe(true);
+  });
 });
 
-function createPlugin(refreshedView: { refreshLocale: () => void }): CopsidianPlugin {
+function createPlugin(
+  refreshedView: { refreshLocale: () => void; loadToolbarOptions?: () => void },
+  snapshot: {
+    availableModes?: Array<{ id: string; name: string }>;
+    availableModels?: Array<{ modelId: string; name: string }>;
+    availableCommands?: Array<{ name: string; description: string }>;
+  } = {},
+  runtimeOptions = snapshot,
+): CopsidianPlugin {
   const settings: CopsidianSettings = {
     ...DEFAULT_SETTINGS,
     syncRules: DEFAULT_SETTINGS.syncRules.map((rule) => ({ ...rule })),
     mcpServers: [],
+    customAgents: [],
+    customSkills: [],
+    activeCustomAgentId: '',
+    commonModels: [],
     language: 'en',
   };
   return {
@@ -54,6 +214,20 @@ function createPlugin(refreshedView: { refreshLocale: () => void }): CopsidianPl
     settings,
     savePluginData: vi.fn().mockResolvedValue(undefined),
     initClient: vi.fn().mockResolvedValue(true),
+    getClient: vi.fn(() => ({
+      createSession: vi.fn().mockResolvedValue('settings-session'),
+      getAvailableAgents: vi.fn().mockResolvedValue(runtimeOptions.availableModes ?? []),
+      getAvailableModels: vi.fn().mockResolvedValue(runtimeOptions.availableModels ?? []),
+      getAvailableCommands: vi.fn().mockResolvedValue(runtimeOptions.availableCommands ?? []),
+      getSessionSnapshot: vi.fn(() => ({
+        configOptions: [],
+        availableCommands: snapshot.availableCommands ?? [],
+        availableModels: snapshot.availableModels ?? [],
+        availableModes: snapshot.availableModes ?? [],
+        currentModelId: null,
+        currentModeId: null,
+      })),
+    })),
     client: null,
   } as unknown as CopsidianPlugin;
 }

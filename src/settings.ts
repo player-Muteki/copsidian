@@ -3,7 +3,7 @@ import { existsSync } from 'fs';
 import { delimiter, isAbsolute } from 'path';
 import CopsidianPlugin from './main';
 import { VIEW_TYPE } from './types';
-import type { McpServerConfig, PermissionLevel, SyncRule } from './types';
+import type { AvailableCommand, CustomAgentDefinition, CustomSkillDefinition, McpServerConfig, ModeOption, ModelOption, PermissionLevel, SyncRule } from './types';
 import { setLocale, t as locale } from './i18n/index';
 
 interface AutoScrollView {
@@ -15,6 +15,12 @@ interface LocaleAwareView {
 }
 
 export class CopsidianSettingsTab extends PluginSettingTab {
+  private runtimeAgents: ModeOption[] = [];
+  private runtimeModels: ModelOption[] = [];
+  private runtimeSkills: AvailableCommand[] = [];
+  private runtimeOptionsLoaded = false;
+  private runtimeOptionsLoading = false;
+
   constructor(private plugin: CopsidianPlugin) {
     super(plugin.app, plugin);
   }
@@ -24,6 +30,10 @@ export class CopsidianSettingsTab extends PluginSettingTab {
     containerEl.empty();
     const s = this.plugin.settings;
     const labels = locale().settings;
+    const availableAgents = this.getAvailableAgents();
+    const availableModels = this.getAvailableModels();
+    const availableSkills = this.getAvailableSkills();
+    this.loadRuntimeOptions();
 
     // ── Connection ──
     new Setting(containerEl).setName(labels.connection).setHeading();
@@ -46,6 +56,8 @@ export class CopsidianSettingsTab extends PluginSettingTab {
       .addButton((b) => b.setButtonText(labels.reconnect.button).setCta()
         .onClick(async () => {
           const connected = await this.plugin.initClient();
+          this.runtimeOptionsLoaded = false;
+          await this.loadRuntimeOptions();
           new Notice(connected ? locale().settings.reconnect.success : locale().settings.reconnect.failed);
         }));
 
@@ -60,9 +72,15 @@ export class CopsidianSettingsTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName(labels.defaultAgent)
-      .addDropdown((d) => d.addOptions({ build: 'build', plan: 'plan', docs: 'docs' })
+      .addDropdown((d) => d.addOptions(this.buildAgentOptions(availableAgents))
         .setValue(s.defaultAgent)
         .onChange(async (v) => { s.defaultAgent = v; await this.save(); }));
+
+    new Setting(containerEl)
+      .setName(labels.defaultModel)
+      .addDropdown((d) => d.addOptions(this.buildModelOptions(availableModels))
+        .setValue(s.defaultModel)
+        .onChange(async (v) => { s.defaultModel = v; await this.save(); }));
 
     new Setting(containerEl)
       .setName(labels.permissionMode.name)
@@ -78,6 +96,19 @@ export class CopsidianSettingsTab extends PluginSettingTab {
           await this.save();
           if (this.plugin.client) this.plugin.client.permissionMode = v;
         }));
+
+    new Setting(containerEl)
+      .setName(labels.customAgents.active)
+      .setDesc(labels.customAgents.activeDesc)
+      .addDropdown((d) => {
+        const options: Record<string, string> = { '': labels.customAgents.none };
+        for (const agent of s.customAgents.filter((item) => item.enabled)) {
+          options[agent.id] = agent.name || agent.id;
+        }
+        d.addOptions(options);
+        d.setValue(s.activeCustomAgentId ?? '');
+        d.onChange(async (v) => { s.activeCustomAgentId = v; await this.save(); });
+      });
 
     // ── System Prompt ──
     new Setting(containerEl).setName(labels.systemPrompt.heading).setHeading();
@@ -113,6 +144,82 @@ export class CopsidianSettingsTab extends PluginSettingTab {
           const n = parseInt(v, 10);
           if (!isNaN(n) && n > 0) { s.maxNoteSize = n; await this.save(); new Notice(locale().settings.notes.saved); }
         }));
+
+    // ── Custom Agents & Skills ──
+    new Setting(containerEl).setName(labels.customAgents.heading).setHeading();
+
+    for (const agent of s.customAgents) {
+      this.addCustomAgentBlock(containerEl, agent);
+    }
+
+    new Setting(containerEl)
+      .setName('')
+      .addButton((b) => b.setButtonText(labels.customAgents.add)
+        .onClick(async () => {
+          const agent: CustomAgentDefinition = {
+            id: `agent-${Date.now()}`,
+            enabled: true,
+            name: labels.customAgents.defaultName,
+            description: '',
+            instructions: '',
+            skillIds: [],
+          };
+          s.customAgents.push(agent);
+          await this.save();
+          this.display();
+        }));
+
+    new Setting(containerEl).setName(labels.customSkills.heading).setHeading();
+
+    new Setting(containerEl).setName(labels.customSkills.loadedHeading).setHeading();
+
+    if (availableSkills.length === 0) {
+      new Setting(containerEl).setName(labels.customSkills.loadedEmpty);
+    }
+
+    for (const skill of availableSkills) {
+      new Setting(containerEl)
+        .setName(skill.name)
+        .setDesc(skill.description);
+    }
+
+    if (s.customSkills.length === 0) {
+      new Setting(containerEl).setName(labels.customSkills.empty);
+    }
+
+    for (const skill of s.customSkills) {
+      this.addCustomSkillBlock(containerEl, skill);
+    }
+
+    new Setting(containerEl)
+      .setName('')
+      .addButton((b) => b.setButtonText(labels.customSkills.add)
+        .onClick(async () => {
+          const skill: CustomSkillDefinition = {
+            id: `skill-${Date.now()}`,
+            enabled: true,
+            name: labels.customSkills.defaultName,
+            description: '',
+            instructions: '',
+          };
+          s.customSkills.push(skill);
+          await this.save();
+          this.display();
+        }));
+
+    // ── Common Models ──
+    new Setting(containerEl)
+      .setName(labels.commonModels.heading)
+      .setDesc(labels.commonModels.desc)
+      .setHeading();
+
+    if (availableModels.length === 0) {
+      new Setting(containerEl).setName(labels.commonModels.empty);
+    }
+
+    for (const model of availableModels) {
+      this.addCommonModelToggle(containerEl, model);
+    }
 
     // ── MCP Servers ──
     new Setting(containerEl).setName(labels.mcp.heading).setHeading();
@@ -261,6 +368,133 @@ export class CopsidianSettingsTab extends PluginSettingTab {
     };
   }
 
+  private addCustomAgentBlock(containerEl: HTMLElement, agent: CustomAgentDefinition): void {
+    const labels = locale().settings.customAgents;
+    const block = containerEl.createDiv({ cls: 'copsidian-custom-agent' });
+    block.createEl('strong', { text: labels.label.replace('{name}', agent.name || agent.id) });
+
+    new Setting(block)
+      .setName(labels.enabled)
+      .addToggle((toggle) => toggle.setValue(agent.enabled)
+        .onChange(async (value) => { agent.enabled = value; await this.save(); this.display(); }));
+
+    new Setting(block)
+      .setName(labels.id)
+      .setDesc(labels.idDesc)
+      .addText((text) => text.setValue(agent.id)
+        .onChange(async (value) => {
+          const nextId = value.trim();
+          if (!this.renameCustomAgent(agent.id, nextId)) {
+            text.setValue(agent.id);
+            return;
+          }
+          await this.save();
+        }));
+
+    new Setting(block)
+      .setName(labels.name)
+      .addText((text) => text.setValue(agent.name)
+        .onChange(async (value) => { agent.name = value.trim(); await this.save(); }));
+
+    new Setting(block)
+      .setName(labels.description)
+      .addText((text) => text.setValue(agent.description)
+        .onChange(async (value) => { agent.description = value.trim(); await this.save(); }));
+
+    new Setting(block)
+      .setName(labels.instructions)
+      .setDesc(labels.instructionsDesc)
+      .addTextArea((text) => {
+        text.setValue(agent.instructions);
+        text.inputEl.rows = 5;
+        text.onChange(async (value) => { agent.instructions = value; await this.save(); });
+      });
+
+    new Setting(block)
+      .setName(labels.skills)
+      .setDesc(labels.skillsDesc)
+      .addText((text) => text.setValue(agent.skillIds.join(', '))
+        .onChange(async (value) => {
+          agent.skillIds = value.split(',').map((item) => item.trim()).filter(Boolean);
+          await this.save();
+        }));
+
+    const delBtn = block.createEl('button', { text: locale().settings.sync.delete, cls: 'mod-warning' });
+    delBtn.onclick = async () => {
+      this.plugin.settings.customAgents = this.plugin.settings.customAgents.filter((item) => item.id !== agent.id);
+      if (this.plugin.settings.activeCustomAgentId === agent.id) this.plugin.settings.activeCustomAgentId = '';
+      await this.save();
+      this.display();
+    };
+  }
+
+  private addCustomSkillBlock(containerEl: HTMLElement, skill: CustomSkillDefinition): void {
+    const labels = locale().settings.customSkills;
+    const block = containerEl.createDiv({ cls: 'copsidian-custom-skill' });
+    block.createEl('strong', { text: labels.label.replace('{name}', skill.name || skill.id) });
+
+    new Setting(block)
+      .setName(labels.enabled)
+      .addToggle((toggle) => toggle.setValue(skill.enabled)
+        .onChange(async (value) => { skill.enabled = value; await this.save(); }));
+
+    new Setting(block)
+      .setName(labels.id)
+      .setDesc(labels.idDesc)
+      .addText((text) => text.setValue(skill.id)
+        .onChange(async (value) => {
+          const nextId = value.trim();
+          if (!this.renameCustomSkill(skill.id, nextId)) {
+            text.setValue(skill.id);
+            return;
+          }
+          await this.save();
+        }));
+
+    new Setting(block)
+      .setName(labels.name)
+      .addText((text) => text.setValue(skill.name)
+        .onChange(async (value) => { skill.name = value.trim(); await this.save(); }));
+
+    new Setting(block)
+      .setName(labels.description)
+      .addText((text) => text.setValue(skill.description)
+        .onChange(async (value) => { skill.description = value.trim(); await this.save(); }));
+
+    new Setting(block)
+      .setName(labels.instructions)
+      .setDesc(labels.instructionsDesc)
+      .addTextArea((text) => {
+        text.setValue(skill.instructions);
+        text.inputEl.rows = 5;
+        text.onChange(async (value) => { skill.instructions = value; await this.save(); });
+      });
+
+    const delBtn = block.createEl('button', { text: locale().settings.sync.delete, cls: 'mod-warning' });
+    delBtn.onclick = async () => {
+      this.plugin.settings.customSkills = this.plugin.settings.customSkills.filter((item) => item.id !== skill.id);
+      for (const agent of this.plugin.settings.customAgents) {
+        agent.skillIds = agent.skillIds.filter((id) => id !== skill.id);
+      }
+      await this.save();
+      this.display();
+    };
+  }
+
+  private addCommonModelToggle(containerEl: HTMLElement, model: ModelOption): void {
+    new Setting(containerEl)
+      .setName(model.name || model.modelId)
+      .setDesc(model.modelId)
+      .addToggle((toggle) => toggle.setValue(this.plugin.settings.commonModels.includes(model.modelId))
+        .onChange(async (enabled) => {
+          const common = this.plugin.settings.commonModels.filter((id) => id !== model.modelId);
+          if (enabled) common.push(model.modelId);
+          this.plugin.settings.commonModels = common;
+          await this.save();
+          this.refreshOpenViewsModels();
+        }));
+  }
+
   private addMcpServerBlock(containerEl: HTMLElement, server: McpServerConfig): void {
     const labels = locale().settings.mcp;
     const block = containerEl.createDiv({ cls: 'copsidian-mcp-server' });
@@ -302,6 +536,113 @@ export class CopsidianSettingsTab extends PluginSettingTab {
       await this.save();
       this.display();
     };
+  }
+
+  private renameCustomAgent(currentId: string, nextId: string): boolean {
+    if (!nextId) return false;
+    if (nextId !== currentId && this.plugin.settings.customAgents.some((item) => item.id === nextId)) {
+      new Notice(locale().settings.customAgents.duplicateId.replace('{id}', nextId));
+      return false;
+    }
+    const agent = this.plugin.settings.customAgents.find((item) => item.id === currentId);
+    if (!agent) return false;
+    agent.id = nextId;
+    if (this.plugin.settings.activeCustomAgentId === currentId) this.plugin.settings.activeCustomAgentId = nextId;
+    return true;
+  }
+
+  private renameCustomSkill(currentId: string, nextId: string): boolean {
+    if (!nextId) return false;
+    if (nextId !== currentId && this.plugin.settings.customSkills.some((item) => item.id === nextId)) {
+      new Notice(locale().settings.customSkills.duplicateId.replace('{id}', nextId));
+      return false;
+    }
+    const skill = this.plugin.settings.customSkills.find((item) => item.id === currentId);
+    if (!skill) return false;
+    skill.id = nextId;
+    for (const agent of this.plugin.settings.customAgents) {
+      agent.skillIds = agent.skillIds.map((id) => id === currentId ? nextId : id);
+    }
+    return true;
+  }
+
+  private getAvailableAgents(): ModeOption[] {
+    if (this.runtimeOptionsLoaded) return this.runtimeAgents;
+    return this.plugin.getClient()?.getSessionSnapshot().availableModes ?? [];
+  }
+
+  private getAvailableModels(): ModelOption[] {
+    if (this.runtimeOptionsLoaded) return this.runtimeModels;
+    return this.plugin.getClient()?.getSessionSnapshot().availableModels ?? [];
+  }
+
+  private getAvailableSkills(): AvailableCommand[] {
+    if (this.runtimeOptionsLoaded) return this.runtimeSkills;
+    return this.plugin.getClient()?.getSessionSnapshot().availableCommands ?? [];
+  }
+
+  private async loadRuntimeOptions(): Promise<void> {
+    if (this.runtimeOptionsLoading || this.runtimeOptionsLoaded) return;
+    this.runtimeOptionsLoading = true;
+    try {
+      const connected = await this.plugin.initClient();
+      if (!connected) return;
+
+      let client = this.plugin.getClient();
+      if (!client) return;
+
+      let snapshot = client.getSessionSnapshot();
+      if (snapshot.availableModes.length === 0 && snapshot.availableModels.length === 0 && snapshot.availableCommands.length === 0) {
+        await client.createSession(undefined, this.plugin.settings.mcpServers).catch(() => '');
+        client = this.plugin.getClient();
+        if (!client) return;
+        snapshot = client.getSessionSnapshot();
+      }
+
+      const [agents, models, skills] = await Promise.all([
+        client.getAvailableAgents(),
+        client.getAvailableModels(),
+        client.getAvailableCommands(),
+      ]);
+      this.runtimeAgents = agents.length > 0 ? agents : snapshot.availableModes;
+      this.runtimeModels = models.length > 0 ? models : snapshot.availableModels;
+      this.runtimeSkills = skills.length > 0 ? skills : snapshot.availableCommands;
+      this.runtimeOptionsLoaded = true;
+      this.display();
+    } finally {
+      this.runtimeOptionsLoading = false;
+    }
+  }
+
+  private buildAgentOptions(agents: ModeOption[]): Record<string, string> {
+    const options: Record<string, string> = {};
+    for (const agent of agents) options[agent.id] = agent.name;
+    if (Object.keys(options).length === 0) {
+      options.build = 'build';
+      options.plan = 'plan';
+      options.docs = 'docs';
+    }
+    if (this.plugin.settings.defaultAgent && !options[this.plugin.settings.defaultAgent]) {
+      options[this.plugin.settings.defaultAgent] = this.plugin.settings.defaultAgent;
+    }
+    return options;
+  }
+
+  private buildModelOptions(models: ModelOption[]): Record<string, string> {
+    const options: Record<string, string> = { '': '—' };
+    for (const model of models) options[model.modelId] = model.name;
+    if (this.plugin.settings.defaultModel && !options[this.plugin.settings.defaultModel]) {
+      options[this.plugin.settings.defaultModel] = this.plugin.settings.defaultModel;
+    }
+    return options;
+  }
+
+  private refreshOpenViewsModels(): void {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+    for (const leaf of leaves) {
+      const view = leaf.view as { loadToolbarOptions?: () => void };
+      view.loadToolbarOptions?.();
+    }
   }
 
   private async save(): Promise<void> {
