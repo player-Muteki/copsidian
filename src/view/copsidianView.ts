@@ -18,6 +18,9 @@ import { StreamController } from '../chat/streamController';
 import { parseSlashCommand, isBuiltInCommand } from '../commands/executor';
 import { SessionDropdown } from './sessionDropdown';
 import { Autocomplete } from './autocomplete';
+import { buildCustomAgentPrompt, getValidActiveCustomAgent } from '../agents/custom';
+import { filterCommonModelOptions } from './modelFilter';
+import { applyDefaultSessionSettings } from './sessionDefaults';
 
 interface MarkdownFileView {
 	getViewType(): string;
@@ -282,6 +285,7 @@ export class CopsidianView extends ItemView {
 				const c = this.plugin.getClient();
 				if (c) {
 					this.state.sessionId = await c.createSession(this.getVaultCwd(), this.plugin.settings.mcpServers);
+					await applyDefaultSessionSettings(c, this.state.sessionId, this.plugin.settings);
 					this.sessionStore.getOrCreate(this.state.sessionId);
 					this.sessionStore.setActive(this.state.sessionId);
 					await this.sessionStore.save();
@@ -711,6 +715,7 @@ export class CopsidianView extends ItemView {
 			await this.cancelActiveGeneration();
 			this.resetConversationView();
 			this.state.sessionId = await c.createSession(this.getVaultCwd(), this.plugin.settings.mcpServers);
+			await applyDefaultSessionSettings(c, this.state.sessionId, this.plugin.settings);
 			this.sessionStore.getOrCreate(this.state.sessionId);
 			this.sessionStore.setActive(this.state.sessionId);
 			await this.sessionStore.save();
@@ -902,7 +907,13 @@ export class CopsidianView extends ItemView {
 			if (result) resolved.push(result);
 		}
 		const injection = ContextInjection.build(resolved);
-		const sysPrompt = ContextInjection.systemPrompt(this.plugin.settings.systemPrompt);
+		const activeAgent = getValidActiveCustomAgent(
+			this.plugin.settings.activeCustomAgentId,
+			this.plugin.settings.customAgents,
+			this.plugin.settings.customSkills,
+		);
+		const customAgentPrompt = buildCustomAgentPrompt(activeAgent, this.plugin.settings.customSkills);
+		const sysPrompt = ContextInjection.systemPrompt(this.plugin.settings.systemPrompt, customAgentPrompt);
 		const combined = [sysPrompt, injection].filter(Boolean).join('\n\n');
 		if (combined) parts.push({ type: 'text', text: combined });
 
@@ -918,7 +929,7 @@ export class CopsidianView extends ItemView {
 		for (const opt of opts) {
 			if (opt.id === 'model') {
 				this.toolbar.updateModels(
-					opt.options.map(o => ({ value: o.value, label: o.name })),
+					this.filterCommonModelOptions(opt.options.map(o => ({ value: o.value, label: o.name }))),
 					opt.currentValue,
 				);
 			}
@@ -946,12 +957,12 @@ export class CopsidianView extends ItemView {
 
 	private applyModelUpdate(modelId: string | null, models: import('../types').ModelOption[]): void {
 		this.toolbar.updateModels(
-			models.map(m => ({ value: m.modelId, label: m.name })),
+			this.filterCommonModelOptions(models.map(m => ({ value: m.modelId, label: m.name }))),
 			modelId ?? undefined,
 		);
 	}
 
-	private loadToolbarOptions(): void {
+	loadToolbarOptions(): void {
 		const c = this.plugin.getClient();
 		if (!c) return;
 
@@ -968,7 +979,7 @@ export class CopsidianView extends ItemView {
 		const effortConfig = configMap.get('effort');
 
 		const agents = snapshot.availableModes.map(mode => ({ value: mode.id, label: mode.name }));
-		const models = snapshot.availableModels.map(model => ({ value: model.modelId, label: model.name }));
+		const models = this.filterCommonModelOptions(snapshot.availableModels.map(model => ({ value: model.modelId, label: model.name })));
 		const ef = t().toolbar.effort;
 		const efforts = [
 			{ value: 'default', label: ef.default },
@@ -990,6 +1001,10 @@ export class CopsidianView extends ItemView {
 			efforts,
 			effortConfig?.currentValue ?? this.plugin.settings.defaultEffort,
 		);
+	}
+
+	private filterCommonModelOptions(options: Array<{ value: string; label: string }>): Array<{ value: string; label: string }> {
+		return filterCommonModelOptions(options, this.plugin.settings.commonModels, this.plugin.settings.defaultModel);
 	}
 
 	// ── @mention chips ──
