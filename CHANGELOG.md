@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.14 - 2026-05-23
+
+### Changed
+- Defer OpenCode connection until first user action (send message or create session).
+- Remove automatic connection during plugin startup, settings page load, and view initialization.
+- Change autoConnect default from true to false for new installations.
+- Update README documentation to reflect lazy connection behavior.
+
+### Tested
+- Add regression tests for deferred connection behavior.
+- Verify plugin loads without blocking on OpenCode connection.
+
 ## 0.0.13 - 2026-05-22
 
 ### Fixed
