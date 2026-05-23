@@ -110,7 +110,20 @@ Runtime agents, models, and available commands/skills load automatically when Se
 
 ## Release Checks
 
-For release packaging, run `npm run release` followed by `npm run release:check` to verify generated release artifacts.
+Before publishing a release, make sure the version is updated in `package.json`, `manifest.json`, `src/client/acp.ts`, and `CHANGELOG.md`, then run:
+
+```bash
+npm run check
+npm test
+npm run release
+npm run release:check
+```
+
+`npm run release` builds the production plugin files and copies `main.js`, `manifest.json`, and `styles.css` into `release/`. `npm run release:check` verifies the release metadata and generated artifacts.
+
+Publishing is tag-driven. After the local checks pass and the working tree is clean, create and push an annotated `vX.Y.Z` tag. The GitHub Actions release workflow runs on `v*` tags, builds the release, creates the GitHub Release, and uploads `copsidian-vX.Y.Z.zip`, `main.js`, `manifest.json`, and `styles.css`.
+
+Do not run `gh release create vX.Y.Z` after pushing the tag. If GitHub reports `Release.tag_name already exists`, the tag-triggered workflow has usually created the release already; verify it with `gh release view vX.Y.Z` and check the uploaded assets instead of deleting or recreating it.
 
 ## Keyboard Shortcuts
 
@@ -333,7 +346,20 @@ Licensed under the [MIT License](LICENSE).
 
 ## 发布检查
 
-发布打包时，先运行 `npm run release`，再运行 `npm run release:check` 校验生成的发布产物。
+发布前，先确认 `package.json`、`manifest.json`、`src/client/acp.ts` 和 `CHANGELOG.md` 中的版本一致，然后运行：
+
+```bash
+npm run check
+npm test
+npm run release
+npm run release:check
+```
+
+`npm run release` 会构建生产版插件文件，并将 `main.js`、`manifest.json` 和 `styles.css` 复制到 `release/`。`npm run release:check` 会校验发布元数据和生成的发布产物。
+
+对外发布由 tag 触发。本地检查通过且工作区干净后，创建并推送 annotated `vX.Y.Z` tag。GitHub Actions 的 release workflow 会在 `v*` tag 上运行，重新构建发布产物、创建 GitHub Release，并上传 `copsidian-vX.Y.Z.zip`、`main.js`、`manifest.json` 和 `styles.css`。
+
+推送 tag 后不要再运行 `gh release create vX.Y.Z`。如果 GitHub 返回 `Release.tag_name already exists`，通常说明 tag 触发的 workflow 已经创建了 release；此时应使用 `gh release view vX.Y.Z` 检查现有 release 和已上传资产，不要直接删除或重建。
 
 ## 键盘快捷键
 
