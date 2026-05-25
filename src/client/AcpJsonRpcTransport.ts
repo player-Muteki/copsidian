@@ -1,8 +1,10 @@
 import { createInterface, type Interface } from 'readline';
+import { AcpTransportError, AcpTimeoutError, AcpProtocolError } from './AcpErrors';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 interface PendingRequest {
+  method: string;
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timeout: NodeJS.Timeout | null;
@@ -39,12 +41,12 @@ export class AcpJsonRpcTransport {
     });
     this.readline.on('line', (line) => this.handleLine(line));
     this.readline.on('close', () => {
-      if (!this.disposed) this.dispose(new Error('JSON-RPC input closed'));
+      if (!this.disposed) this.dispose(new AcpTransportError('JSON-RPC input closed'));
     });
   }
 
   request<T>(method: string, params?: Record<string, unknown>, timeoutMs?: number): Promise<T> {
-    if (this.disposed) return Promise.reject(new Error('Transport closed'));
+    if (this.disposed) return Promise.reject(new AcpTransportError('Transport closed'));
     const id = this.nextId++;
     const msg = { jsonrpc: '2.0', id, method, params };
     const effectiveTimeout = timeoutMs ?? this.defaultTimeoutMs;
@@ -54,10 +56,10 @@ export class AcpJsonRpcTransport {
       if (effectiveTimeout > 0) {
         timeout = setTimeout(() => {
           this.pending.delete(id);
-          reject(new Error(`Request ${method} timed out after ${effectiveTimeout}ms`));
+          reject(new AcpTimeoutError(method, effectiveTimeout));
         }, effectiveTimeout);
       }
-      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timeout });
+      this.pending.set(id, { method, resolve: resolve as (v: unknown) => void, reject, timeout });
       this.send(msg);
     });
   }
@@ -92,7 +94,7 @@ export class AcpJsonRpcTransport {
     this.disposed = true;
     this.readline?.close();
     this.readline = null;
-    this.rejectPending(error ?? new Error('Transport closed'));
+    this.rejectPending(error ?? new AcpTransportError('Transport closed'));
   }
 
   private send(msg: Record<string, unknown>): void {
@@ -125,7 +127,8 @@ export class AcpJsonRpcTransport {
       this.pending.delete(id);
       if (entry) {
         if (entry.timeout) clearTimeout(entry.timeout);
-        entry.reject(new Error((parsed.error as { message: string })?.message ?? 'Unknown error'));
+        const errObj = parsed.error as { code?: number; message?: string; data?: unknown };
+        entry.reject(new AcpProtocolError(errObj?.message ?? 'Unknown error', entry.method, errObj?.code, errObj?.data));
       }
     } else if (hasMethod && id === undefined) {
       const handlers = this.notificationHandlers.get(parsed.method as string);
