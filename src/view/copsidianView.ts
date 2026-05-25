@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, TFile } from 'obsidian';
 import type CopsidianPlugin from '../main';
 import { VIEW_TYPE } from '../types';
-import type { SessionUpdate, ContextRef, PromptPart, PermissionRequest } from '../types';
+import type { SessionUpdate, ContextRef, PromptPart } from '../types';
 import { t } from '../i18n/index';
 import { ChatRenderer } from './renderer';
 import { ChatInput } from '../chat/input';
@@ -23,6 +23,8 @@ import { filterCommonModelOptions } from './modelFilter';
 import { applyDefaultSessionSettings } from './sessionDefaults';
 import { Mutex } from '../utils/mutex';
 import { DragDropManager } from './dragDropManager';
+import { PermissionBanner } from './permissionBanner';
+import { InlineEditPanel } from './inlineEditPanel';
 
 interface MarkdownFileView {
 	getViewType(): string;
@@ -50,11 +52,12 @@ export class CopsidianView extends ItemView {
 	private currentRefs: ContextRef[] = [];
 	private manualRefs = new Set<string>();
 	private reconnectBtn: HTMLButtonElement | null = null;
-	private permissionBannerEl: HTMLDivElement | null = null;
 	private welcomeEl: HTMLDivElement | null = null;
 	private globalKeyHandler: ((e: KeyboardEvent) => void) | null = null;
 	private newMessagesBtn: HTMLButtonElement | null = null;
 	private dragDropManager!: DragDropManager;
+	private permissionBanner!: PermissionBanner;
+	private inlineEditPanel!: InlineEditPanel;
 	private pendingImageParts: PromptPart[] = [];
 	private lastAutoRefId: string | null = null;
 	private sendStartTime = 0;
@@ -74,9 +77,9 @@ export class CopsidianView extends ItemView {
 	}
 
 	private resetConversationView(): void {
-		this.clearInlineEditState();
+		if (this.inlineEditPanel) this.inlineEditPanel.clearState();
 		this.closeAutocomplete();
-		this.dismissPermissionBanner();
+		if (this.permissionBanner) this.permissionBanner.dismiss();
 		this.hideWelcome();
 		this.renderer.clear();
 		this.streamCtrl.reset();
@@ -135,7 +138,7 @@ export class CopsidianView extends ItemView {
 			},
 			onPermissionRequest: async (req) => (
 				client.permissionMode === 'safe'
-					? this.showPermissionBanner(req)
+					? this.permissionBanner.show(req)
 					: client.requestPermission(req)
 			),
 		});
@@ -219,6 +222,9 @@ export class CopsidianView extends ItemView {
 		// ── Messages ──
 		this.messagesEl = el.createDiv({ cls: 'copsidian-messages' });
 		this.renderer = new ChatRenderer(this.messagesEl, this.plugin.app, () => this.state.autoScrollEnabled);
+
+		this.permissionBanner = new PermissionBanner(this.messagesEl);
+		this.inlineEditPanel = new InlineEditPanel(this.contentEl);
 
 		// ── Context chips ──
 		this.contextChipsEl = el.createDiv({ cls: 'copsidian-context-chips' });
@@ -490,7 +496,7 @@ export class CopsidianView extends ItemView {
 		this.input?.refreshLocale();
 		this.toolbar?.refreshLocale();
 		this.renderer?.refreshLocale();
-		this.refreshInlineEditLocale();
+		if (this.inlineEditPanel) this.inlineEditPanel.refreshLocale();
 		this.updateWelcomeStatus();
 		if (this.welcomeEl) {
 			this.showWelcome();
@@ -523,7 +529,7 @@ export class CopsidianView extends ItemView {
 	private handleDisconnect(): void {
 		this.state.isConnected = false;
 		this.closeAutocomplete();
-		this.dismissPermissionBanner();
+		if (this.permissionBanner) this.permissionBanner.dismiss();
 		this.renderer.removeAssistantPlaceholder();
 		this.streamCtrl.reset();
 		this.busy = false;
@@ -640,8 +646,8 @@ export class CopsidianView extends ItemView {
 		const sessionId = await this.ensureRuntimeSession();
 		const c = this.plugin.getClient();
 		if (!c || !sessionId) return;
-		const inlineEdit = this.pendingInlineEdit;
-		if (!inlineEdit) this.hideInlineEditDiff();
+		const inlineEdit = this.inlineEditPanel.pendingState;
+		if (!inlineEdit) this.inlineEditPanel.clearState();
 
 		// Hide welcome page on first message
 		this.hideWelcome();
@@ -701,15 +707,15 @@ export class CopsidianView extends ItemView {
 				});
 			}
 			// Handle inline edit response
-			if (inlineEdit && this.pendingInlineEdit === inlineEdit) {
+			if (inlineEdit && this.inlineEditPanel.pendingState === inlineEdit) {
 				const session = this.sessionStore.get(sessionId ?? '');
 				if (session) {
 					const lastMsg = session.messages.slice().reverse().find(m => m.role === 'assistant');
 					if (lastMsg) {
-						this.showInlineEditDiff(inlineEdit.original, lastMsg.content);
+						this.inlineEditPanel.showDiff(inlineEdit.original, lastMsg.content);
 					}
 				}
-				this.pendingInlineEdit = null;
+				this.inlineEditPanel.pendingState = null;
 			}
 		}
 	}
@@ -750,44 +756,6 @@ export class CopsidianView extends ItemView {
 			await c.cancel(this.state.sessionId);
 		} catch (e) {
 			console.error('[copsidian] cancel:', e);
-		}
-	}
-
-	// ── Permission UI ──
-
-	private showPermissionBanner(req: PermissionRequest): Promise<string> {
-		return new Promise((resolve) => {
-			this.dismissPermissionBanner();
-			const banner = this.messagesEl.createDiv({ cls: 'copsidian-permission-banner' });
-			this.permissionBannerEl = banner;
-
-			const title = req.toolCall.title || req.toolCall.kind;
-			banner.createDiv({ cls: 'perm-title', text: t().permission.title.replace('{title}', title) });
-
-			if (req.toolCall.locations?.length) {
-				banner.createDiv({ cls: 'perm-path', text: req.toolCall.locations[0].path });
-			}
-
-			const actions = banner.createDiv({ cls: 'perm-actions' });
-			for (const opt of req.options) {
-				const btn = actions.createEl('button', {
-					text: opt.name,
-					cls: `perm-btn perm-${opt.kind}`,
-				});
-				btn.onclick = () => {
-					this.dismissPermissionBanner();
-					resolve(opt.optionId);
-				};
-			}
-
-			this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
-		});
-	}
-
-	private dismissPermissionBanner(): void {
-		if (this.permissionBannerEl) {
-			this.permissionBannerEl.remove();
-			this.permissionBannerEl = null;
 		}
 	}
 
@@ -1072,86 +1040,13 @@ export class CopsidianView extends ItemView {
 
 	// ── Inline Edit ──
 
-	private pendingInlineEdit: { original: string; editor: import('obsidian').Editor } | null = null;
-	private inlineEditPanelEl: HTMLDivElement | null = null;
-
 	async requestInlineEdit(selected: string, editor: import('obsidian').Editor): Promise<void> {
-		this.clearInlineEditState();
-		this.pendingInlineEdit = { original: selected, editor };
-		const prompt = t().inlineEdit.prompt.replace('{text}', selected);
+		const prompt = this.inlineEditPanel.request(selected, editor);
 		await this.send(prompt, []);
 	}
 
+	// Exposed for tests
 	showInlineEditDiff(original: string, edited: string): void {
-		this.hideInlineEditDiff();
-		const editor = this.pendingInlineEdit?.editor;
-		const panel = this.contentEl.createDiv({ cls: 'copsidian-inline-edit-panel' });
-		this.inlineEditPanelEl = panel;
-
-		panel.createDiv({ cls: 'copsidian-inline-edit-title', text: t().inlineEdit.title });
-
-		const diffBody = panel.createDiv({ cls: 'copsidian-diff-body' });
-		const oldLines = original.split('\n');
-		const newLines = edited.split('\n');
-		const maxLen = Math.max(oldLines.length, newLines.length);
-		for (let i = 0; i < maxLen; i++) {
-			const oldLine = oldLines[i];
-			const newLine = newLines[i];
-			if (oldLine === undefined) {
-				const line = diffBody.createDiv({ cls: 'diff-line added' });
-				line.createSpan({ cls: 'diff-marker', text: '+' });
-				line.createSpan({ text: newLine });
-			} else if (newLine === undefined) {
-				const line = diffBody.createDiv({ cls: 'diff-line removed' });
-				line.createSpan({ cls: 'diff-marker', text: '-' });
-				line.createSpan({ text: oldLine });
-			} else if (oldLine !== newLine) {
-				const rmLine = diffBody.createDiv({ cls: 'diff-line removed' });
-				rmLine.createSpan({ cls: 'diff-marker', text: '-' });
-				rmLine.createSpan({ text: oldLine });
-				const addLine = diffBody.createDiv({ cls: 'diff-line added' });
-				addLine.createSpan({ cls: 'diff-marker', text: '+' });
-				addLine.createSpan({ text: newLine });
-			} else {
-				const line = diffBody.createDiv({ cls: 'diff-line context' });
-				line.createSpan({ cls: 'diff-marker', text: ' ' });
-				line.createSpan({ text: oldLine });
-			}
-		}
-
-		const actions = panel.createDiv({ cls: 'copsidian-inline-edit-actions' });
-		const applyBtn = actions.createEl('button', { cls: 'mod-cta', text: t().inlineEdit.apply });
-		applyBtn.onclick = () => this.applyInlineEdit(editor, edited);
-		const discardBtn = actions.createEl('button', { text: t().inlineEdit.discard });
-		discardBtn.onclick = () => this.clearInlineEditState();
-	}
-
-	private refreshInlineEditLocale(): void {
-		if (!this.inlineEditPanelEl) return;
-		const title = this.inlineEditPanelEl.querySelector('.copsidian-inline-edit-title');
-		if (title) title.textContent = t().inlineEdit.title;
-		const apply = this.inlineEditPanelEl.querySelector('.copsidian-inline-edit-actions .mod-cta');
-		if (apply) apply.textContent = t().inlineEdit.apply;
-		const buttons = this.inlineEditPanelEl.querySelectorAll('.copsidian-inline-edit-actions button');
-		const discard = buttons[1];
-		if (discard) discard.textContent = t().inlineEdit.discard;
-	}
-
-	private applyInlineEdit(editor: import('obsidian').Editor | undefined, edited: string): void {
-		if (!editor) return;
-		editor.replaceSelection(edited);
-		this.clearInlineEditState();
-	}
-
-	private clearInlineEditState(): void {
-		this.pendingInlineEdit = null;
-		this.hideInlineEditDiff();
-	}
-
-	private hideInlineEditDiff(): void {
-		if (this.inlineEditPanelEl) {
-			this.inlineEditPanelEl.remove();
-			this.inlineEditPanelEl = null;
-		}
+		this.inlineEditPanel.showDiff(original, edited);
 	}
 }
