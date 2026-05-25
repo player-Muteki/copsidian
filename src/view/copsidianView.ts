@@ -22,6 +22,7 @@ import { buildCustomAgentPrompt, getValidActiveCustomAgent } from '../agents/cus
 import { filterCommonModelOptions } from './modelFilter';
 import { applyDefaultSessionSettings } from './sessionDefaults';
 import { Mutex } from '../utils/mutex';
+import { DragDropManager } from './dragDropManager';
 
 interface MarkdownFileView {
 	getViewType(): string;
@@ -53,10 +54,8 @@ export class CopsidianView extends ItemView {
 	private welcomeEl: HTMLDivElement | null = null;
 	private globalKeyHandler: ((e: KeyboardEvent) => void) | null = null;
 	private newMessagesBtn: HTMLButtonElement | null = null;
-	private dragOverlayEl: HTMLDivElement | null = null;
+	private dragDropManager!: DragDropManager;
 	private pendingImageParts: PromptPart[] = [];
-	private pendingImageTotalBytes = 0;
-	private static readonly MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
 	private lastAutoRefId: string | null = null;
 	private sendStartTime = 0;
 	private headerTitleEl: HTMLDivElement | null = null;
@@ -64,9 +63,6 @@ export class CopsidianView extends ItemView {
 
 	// Event listener references for cleanup on close
 	private scrollHandler: (() => void) | null = null;
-	private dragOverHandler: ((e: DragEvent) => void) | null = null;
-	private dragLeaveHandler: ((e: DragEvent) => void) | null = null;
-	private dropHandler: ((e: DragEvent) => void) | null = null;
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -93,7 +89,7 @@ export class CopsidianView extends ItemView {
 		this.toolbar.setSending(false);
 		this.currentRefs = [];
 		this.pendingImageParts = [];
-		this.pendingImageTotalBytes = 0;
+		if (this.dragDropManager) this.dragDropManager.resetBytes();
 		this.manualRefs.clear();
 		this.lastAutoRefId = null;
 		this.mention.clear();
@@ -308,7 +304,24 @@ export class CopsidianView extends ItemView {
 		this.setupSmartScroll();
 
 		// Setup drag and drop
-		this.setupDragDrop();
+		this.dragDropManager = new DragDropManager(this.messagesEl, this.messagesEl, {
+			onAddNoteRef: (ref) => this.addChip(ref, 'manual'),
+			onAddImagePart: (data, mimeType, size, name) => {
+				this.pendingImageParts.push({ type: 'image', mimeType, data });
+				const chip = this.contextChipsEl.createDiv({
+					cls: 'copsidian-chip',
+					text: `🖼 ${name}`,
+				});
+				chip.dataset.kind = 'image';
+				chip.onclick = () => {
+					this.pendingImageParts = this.pendingImageParts.filter(p => p.data !== data);
+					this.dragDropManager.onRemoveImagePart(data, size);
+					chip.remove();
+				};
+			},
+			onRemoveImagePart: (_data, _size) => {}
+		});
+		this.dragDropManager.setup();
 	}
 
 	override onClose(): Promise<void> {
@@ -325,17 +338,8 @@ export class CopsidianView extends ItemView {
 			this.messagesEl.removeEventListener('scroll', this.scrollHandler);
 			this.scrollHandler = null;
 		}
-		if (this.dragOverHandler && this.messagesEl) {
-			this.messagesEl.removeEventListener('dragover', this.dragOverHandler);
-			this.dragOverHandler = null;
-		}
-		if (this.dragLeaveHandler && this.messagesEl) {
-			this.messagesEl.removeEventListener('dragleave', this.dragLeaveHandler);
-			this.dragLeaveHandler = null;
-		}
-		if (this.dropHandler && this.messagesEl) {
-			this.messagesEl.removeEventListener('drop', this.dropHandler);
-			this.dropHandler = null;
+		if (this.dragDropManager) {
+			this.dragDropManager.teardown();
 		}
 	}
 
@@ -499,48 +503,9 @@ export class CopsidianView extends ItemView {
 		}
 	}
 
-	// ── Drag and Drop ──
-
-	private setupDragDrop(): void {
-		const dropZone = this.messagesEl;
-
-		this.dragOverHandler = (e: DragEvent) => {
-			e.preventDefault();
-			e.dataTransfer!.dropEffect = 'copy';
-			this.showDragOverlay();
-		};
-		dropZone.addEventListener('dragover', this.dragOverHandler);
-
-		this.dragLeaveHandler = (e: DragEvent) => {
-			if (!dropZone.contains(e.relatedTarget as Node)) {
-				this.hideDragOverlay();
-			}
-		};
-		dropZone.addEventListener('dragleave', this.dragLeaveHandler);
-
-		this.dropHandler = async (e: DragEvent) => {
-			e.preventDefault();
-			this.hideDragOverlay();
-			await this.handleDrop(e);
-		};
-		dropZone.addEventListener('drop', this.dropHandler);
-	}
-
-	private showDragOverlay(): void {
-		if (this.dragOverlayEl) return;
-		const overlay = this.messagesEl.createDiv({ cls: 'copsidian-drag-overlay' });
-		overlay.createDiv({ text: t().dragOverlay });
-		this.dragOverlayEl = overlay;
-	}
-
-	private hideDragOverlay(): void {
-		this.dragOverlayEl?.remove();
-		this.dragOverlayEl = null;
-	}
-
 	private clearPendingImageChips(): void {
 		this.pendingImageParts = [];
-		this.pendingImageTotalBytes = 0;
+		if (this.dragDropManager) this.dragDropManager.resetBytes();
 		this.contextChipsEl.querySelectorAll('.copsidian-chip').forEach((el) => {
 			if ((el as HTMLDivElement).dataset.kind === 'image') el.remove();
 		});
@@ -551,66 +516,6 @@ export class CopsidianView extends ItemView {
 		const existing = this.currentRefs.find(r => r.id === this.lastAutoRefId);
 		if (existing && !this.manualRefs.has(existing.id)) this.removeChip(existing.id);
 		this.lastAutoRefId = null;
-	}
-
-	private async handleDrop(e: DragEvent): Promise<void> {
-		const files = e.dataTransfer?.files;
-		if (!files?.length) return;
-
-		for (const file of Array.from(files)) {
-			if (file.name.endsWith('.md')) {
-				// Markdown file → ContextRef
-				const path = file.webkitRelativePath || file.name;
-				const ref: ContextRef = {
-					id: path,
-					type: 'note',
-					name: file.name.replace(/\.md$/, ''),
-					path,
-				};
-				this.addChip(ref, 'manual');
-			} else if (file.type.startsWith('image/')) {
-				// Image → base64 PromptPart
-				try {
-					const data = await this.fileToBase64(file);
-					const imageBytes = file.size;
-					if (this.pendingImageTotalBytes + imageBytes > CopsidianView.MAX_IMAGE_BYTES) {
-						console.warn(`[copsidian] Image "${file.name}" exceeds total size limit (10MB), skipped`);
-						continue;
-					}
-					this.pendingImageTotalBytes += imageBytes;
-					this.pendingImageParts.push({
-						type: 'image',
-						mimeType: file.type,
-						data,
-					});
-				// Show chip for image
-				const chip = this.contextChipsEl.createDiv({
-					cls: 'copsidian-chip',
-					text: `🖼 ${file.name}`,
-				});
-				chip.dataset.kind = 'image';
-				chip.onclick = () => {
-					this.pendingImageParts = this.pendingImageParts.filter(p => p.data !== data);
-					this.pendingImageTotalBytes -= imageBytes;
-					chip.remove();
-				};
-				} catch (err) {
-					console.error('[copsidian] Failed to read image:', err);
-				}
-			}
-		}
-	}
-
-	private fileToBase64(file: File): Promise<string> {
-		return new Promise((resolve, reject) => {
-			const reader = new FileReader();
-			reader.onload = () => {
-				const result = reader.result as string;
-				resolve(result.split(',')[1]);
-			};
-			reader.onerror = reject;
-			reader.readAsDataURL(file);
-		});
 	}
 
 	// ── Session management ──
