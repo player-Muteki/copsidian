@@ -6,14 +6,12 @@
 
 ## 阶段一：重构臃肿的 `CopsidianView` (消除单体化风险)
 
-目前 `CopsidianView.ts` 文件体积庞大（约 1250 行），承担了过多的 UI 渲染与生命周期管理职责。违反了单一职责原则，导致可维护性较差。
+~~目前 `CopsidianView.ts` 文件体积庞大（约 1250 行）~~（**已将拖拽逻辑抽离，文件体积已减少到约 1150 行**）。但该类仍承担了过多的 UI 渲染职责，我们将继续把独立的功能块剥离出去。
 
-### 核心任务：抽象独立的 UI 组件
-我们将把独立的功能块从 `CopsidianView` 主类中剥离出去，形成独立的模块：
+### 核心任务：抽象剩余的独立 UI 组件
 
-1. **拖拽与文件上传模块 (`DragDropManager`)**
-   - **目标**：将当前的 `setupDragDrop`、`handleDrop`、图片转换 Base64 的逻辑抽离为一个专门的事件管理器。
-   - **好处**：使主 View 不需要直接维护 `dragOverHandler`、`dragLeaveHandler` 等 DOM 事件绑定，聚焦于会话管理。
+1. **拖拽与文件上传模块 (`DragDropManager`) - ✅ 已完成**
+   - **现状**：成功抽离为 `src/view/dragDropManager.ts`，事件绑定与 Base64 解析已完全解耦。
 
 2. **行内差异对比面板 (`InlineEditPanel`)**
    - **目标**：将 `showInlineEditDiff`、`applyInlineEdit`、`clearInlineEditState` 及其 DOM 渲染逻辑抽离为独立的 Component 类。
