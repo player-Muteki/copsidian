@@ -202,6 +202,7 @@ export class AcpClient implements OpencodeClient {
   private nextId = 0;
   private pending = new Map<number, RpcEntry>();
   private buffer = '';
+  private activeStreamSessionId: string | null = null;
   private chunkHandler: ((update: SessionUpdate) => void) | null = null;
   private decoder = new TextDecoder();
   private sessionId_: string | null = null;
@@ -250,6 +251,7 @@ export class AcpClient implements OpencodeClient {
     });
     this.process.on('close', (code) => {
       this.connected = false;
+      this.process = null;
       console.error('[copsidian] process exited with code:', code);
       this.rejectPending(new Error(t().acp.processExited.replace('{code}', String(code ?? t().acp.unknownCode))));
       this.onClose?.();
@@ -279,8 +281,19 @@ export class AcpClient implements OpencodeClient {
     this.reconnectAttempts = 0;
     return new Promise((resolve) => {
       if (!this.process) { resolve(); return; }
-      this.process.on('close', () => resolve());
-      this.process.kill();
+      const proc = this.process;
+      const onDone = () => {
+        if (this.process === proc) this.process = null;
+        resolve();
+      };
+      proc.once('close', onDone);
+      try {
+        proc.kill();
+      } catch {
+        onDone();
+      }
+      // Fallback: if kill didn't trigger close within 2s, resolve anyway
+      setTimeout(() => onDone(), 2000);
     });
   }
 
@@ -335,11 +348,22 @@ export class AcpClient implements OpencodeClient {
   }
 
   sendMessage(id: string, parts: PromptPart[], onChunk: (u: SessionUpdate) => void): Promise<AcpResponse> {
+    this.activeStreamSessionId = id;
     this.chunkHandler = onChunk;
-    return this.request('session/prompt', { sessionId: id, prompt: parts }) as Promise<AcpResponse>;
+    return (this.request('session/prompt', { sessionId: id, prompt: parts }) as Promise<AcpResponse>)
+      .finally(() => {
+        if (this.activeStreamSessionId === id) {
+          this.activeStreamSessionId = null;
+          this.chunkHandler = null;
+        }
+      });
   }
 
   cancel(id: string): Promise<void> {
+    if (this.activeStreamSessionId === id) {
+      this.activeStreamSessionId = null;
+      this.chunkHandler = null;
+    }
     return this.request('session/cancel', { sessionId: id }).then(() => {}).catch(() => {});
   }
 
@@ -445,16 +469,20 @@ export class AcpClient implements OpencodeClient {
     let parsed: Record<string, unknown>;
     try { parsed = JSON.parse(line); } catch { return; }
     const msg: JsonRpcIncoming = parsed;
+    const id = typeof msg.id === 'number' ? msg.id : undefined;
+    const hasResult = msg.result !== undefined;
+    const hasError = msg.error !== undefined;
+    const hasMethod = typeof msg.method === 'string';
 
-    if (msg.id && msg.result !== undefined) {
-      const entry = this.pending.get(msg.id);
-      this.pending.delete(msg.id);
+    if (id !== undefined && hasResult) {
+      const entry = this.pending.get(id);
+      this.pending.delete(id);
       if (entry) entry.resolve(msg.result);
-    } else if (msg.id && msg.error) {
-      const entry = this.pending.get(msg.id);
-      this.pending.delete(msg.id);
-      if (entry) entry.reject(new Error(msg.error.message));
-    } else if (msg.method && !msg.id) {
+    } else if (id !== undefined && hasError) {
+      const entry = this.pending.get(id);
+      this.pending.delete(id);
+      if (entry) entry.reject(new Error(msg.error!.message));
+    } else if (hasMethod && id === undefined) {
       // Notification
       if (msg.method === 'session/update') {
         const update = this.parseUpdate(msg.params?.update as Record<string, unknown> | undefined);
@@ -463,9 +491,9 @@ export class AcpClient implements OpencodeClient {
           if (this.chunkHandler) this.chunkHandler(update);
         }
       }
-    } else if (msg.method && msg.id) {
+    } else if (hasMethod && id !== undefined) {
       // Server-initiated request
-      this.handleServerRequest(msg, msg.id);
+      this.handleServerRequest(msg, id);
     }
   }
 
