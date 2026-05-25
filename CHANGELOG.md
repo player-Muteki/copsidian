@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.19 - 2026-05-25
+
+### Changed
+- Integrate AcpJsonRpcTransport into AcpClient, replacing inline readline/JSON-RPC logic
+- Integrate AcpSubprocess into AcpClient, replacing direct child_process.spawn usage
+- AcpClient now delegates transport to AcpJsonRpcTransport and process lifecycle to AcpSubprocess
+- Add 37 new unit tests for AcpJsonRpcTransport, AcpSubprocess, and AcpErrors (202 total)
+
 ## 0.0.18 - 2026-05-25
 
 ### Changed
