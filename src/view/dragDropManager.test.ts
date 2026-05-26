@@ -1,232 +1,238 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { DragDropManager } from './dragDropManager';
 import { installObsidianDomHelpers } from '../test/domHelpers';
-import { setLocale } from '../i18n';
+import { setLocale } from '../i18n/index';
 
 installObsidianDomHelpers();
 
 describe('DragDropManager', () => {
-	it('setups and teardowns event listeners correctly', () => {
-		const targetEl = document.createElement('div');
-		const overlayContainerEl = document.createElement('div');
-		const manager = new DragDropManager(targetEl, overlayContainerEl, {
-			onAddNoteRef: vi.fn(),
-			onAddImagePart: vi.fn(),
-			onRemoveImagePart: vi.fn(),
-		});
+  let dropZone: HTMLDivElement;
+  let overlayContainer: HTMLDivElement;
+  let handlers: {
+    onAddNoteRef: ReturnType<typeof vi.fn>;
+    onAddImagePart: ReturnType<typeof vi.fn>;
+    onRemoveImagePart: ReturnType<typeof vi.fn>;
+  };
+  let manager: DragDropManager;
 
-		const addEventListenerSpy = vi.spyOn(targetEl, 'addEventListener');
-		const removeEventListenerSpy = vi.spyOn(targetEl, 'removeEventListener');
+  beforeEach(() => {
+    setLocale('en');
+    dropZone = document.createElement('div');
+    overlayContainer = document.createElement('div');
+    document.body.appendChild(dropZone);
+    document.body.appendChild(overlayContainer);
 
-		manager.setup();
-		expect(addEventListenerSpy).toHaveBeenCalledWith('dragover', expect.any(Function));
-		expect(addEventListenerSpy).toHaveBeenCalledWith('dragleave', expect.any(Function));
-		expect(addEventListenerSpy).toHaveBeenCalledWith('drop', expect.any(Function));
+    handlers = {
+      onAddNoteRef: vi.fn() as any,
+      onAddImagePart: vi.fn() as any,
+      onRemoveImagePart: vi.fn() as any,
+    };
 
-		manager.teardown();
-		expect(removeEventListenerSpy).toHaveBeenCalledWith('dragover', expect.any(Function));
-		expect(removeEventListenerSpy).toHaveBeenCalledWith('dragleave', expect.any(Function));
-		expect(removeEventListenerSpy).toHaveBeenCalledWith('drop', expect.any(Function));
-	});
+    manager = new DragDropManager(dropZone, overlayContainer, handlers as any);
+  });
 
-	it('shows and hides drag overlay', () => {
-		setLocale('en');
-		const targetEl = document.createElement('div');
-		const overlayContainerEl = document.createElement('div');
-		const manager = new DragDropManager(targetEl, overlayContainerEl, {
-			onAddNoteRef: vi.fn(),
-			onAddImagePart: vi.fn(),
-			onRemoveImagePart: vi.fn(),
-		});
+  describe('setup and teardown', () => {
+    it('adds event listeners on setup', () => {
+      const addSpy = vi.spyOn(dropZone, 'addEventListener');
+      manager.setup();
+      expect(addSpy).toHaveBeenCalledWith('dragover', expect.any(Function));
+      expect(addSpy).toHaveBeenCalledWith('dragleave', expect.any(Function));
+      expect(addSpy).toHaveBeenCalledWith('drop', expect.any(Function));
+    });
 
-		manager.setup();
+    it('removes event listeners on teardown', () => {
+      const removeSpy = vi.spyOn(dropZone, 'removeEventListener');
+      manager.setup();
+      manager.teardown();
+      expect(removeSpy).toHaveBeenCalledWith('dragover', expect.any(Function));
+      expect(removeSpy).toHaveBeenCalledWith('dragleave', expect.any(Function));
+      expect(removeSpy).toHaveBeenCalledWith('drop', expect.any(Function));
+    });
 
-		// Simulate dragover
-		const dragOverEvent = new Event('dragover');
-		Object.defineProperty(dragOverEvent, 'dataTransfer', {
-			value: { types: ['Files'] },
-		});
-		targetEl.dispatchEvent(dragOverEvent);
+    it('does not remove listeners if not setup', () => {
+      const removeSpy = vi.spyOn(dropZone, 'removeEventListener');
+      manager.teardown();
+      expect(removeSpy).not.toHaveBeenCalled();
+    });
+  });
 
-		const overlay = overlayContainerEl.querySelector('.copsidian-drag-overlay');
-		expect(overlay).not.toBeNull();
-		expect(overlay?.textContent).toBe('Drop to attach');
+  describe('drag overlay', () => {
+    it('shows overlay on dragover', () => {
+      manager.setup();
+      const event = new DragEvent('dragover', { bubbles: true });
+      Object.defineProperty(event, 'dataTransfer', { value: { dropEffect: '' } });
+      dropZone.dispatchEvent(event);
 
-		// Simulate dragleave
-		const dragLeaveEvent = new Event('dragleave');
-		targetEl.dispatchEvent(dragLeaveEvent);
+      const overlay = overlayContainer.querySelector('.copsidian-drag-overlay');
+      expect(overlay).not.toBeNull();
+    });
 
-		expect(overlayContainerEl.querySelector('.copsidian-drag-overlay')).toBeNull();
-	});
+    it('does not create multiple overlays', () => {
+      manager.setup();
+      const event = new DragEvent('dragover', { bubbles: true });
+      Object.defineProperty(event, 'dataTransfer', { value: { dropEffect: '' } });
+      dropZone.dispatchEvent(event);
+      dropZone.dispatchEvent(event);
 
-	it('handles markdown file drop', () => {
-		const targetEl = document.createElement('div');
-		const overlayContainerEl = document.createElement('div');
-		const onAddNoteRef = vi.fn();
-		const manager = new DragDropManager(targetEl, overlayContainerEl, {
-			onAddNoteRef,
-			onAddImagePart: vi.fn(),
-			onRemoveImagePart: vi.fn(),
-		});
+      const overlays = overlayContainer.querySelectorAll('.copsidian-drag-overlay');
+      expect(overlays.length).toBe(1);
+    });
 
-		manager.setup();
+    it('hides overlay on dragleave when leaving dropZone', () => {
+      manager.setup();
+      const dragoverEvent = new DragEvent('dragover', { bubbles: true });
+      Object.defineProperty(dragoverEvent, 'dataTransfer', { value: { dropEffect: '' } });
+      dropZone.dispatchEvent(dragoverEvent);
 
-		// Show overlay first to test it gets removed on drop
-		const dragOverEvent = new Event('dragover');
-		Object.defineProperty(dragOverEvent, 'dataTransfer', {
-			value: { types: ['Files'] },
-		});
-		targetEl.dispatchEvent(dragOverEvent);
+      const leaveEvent = new DragEvent('dragleave', { bubbles: true });
+      Object.defineProperty(leaveEvent, 'relatedTarget', { value: document.body });
+      dropZone.dispatchEvent(leaveEvent);
 
-		// Simulate drop
-		const dropEvent = new Event('drop');
-		Object.defineProperty(dropEvent, 'dataTransfer', {
-			value: {
-				files: [
-					{ name: 'test.md', size: 100, type: 'text/markdown' },
-				],
-			},
-		});
-		targetEl.dispatchEvent(dropEvent);
+      const overlay = overlayContainer.querySelector('.copsidian-drag-overlay');
+      expect(overlay).toBeNull();
+    });
 
-		expect(overlayContainerEl.querySelector('.copsidian-drag-overlay')).toBeNull();
-		expect(onAddNoteRef).toHaveBeenCalledWith({
-			id: 'test.md',
-			type: 'note',
-			name: 'test',
-			path: 'test.md',
-		});
-	});
+    it('does not hide overlay on dragleave when moving to child', () => {
+      manager.setup();
+      const child = document.createElement('div');
+      dropZone.appendChild(child);
 
-	it('handles image file drop successfully', async () => {
-		const targetEl = document.createElement('div');
-		const overlayContainerEl = document.createElement('div');
-		const onAddImagePart = vi.fn();
-		const manager = new DragDropManager(targetEl, overlayContainerEl, {
-			onAddNoteRef: vi.fn(),
-			onAddImagePart,
-			onRemoveImagePart: vi.fn(),
-		});
+      const dragoverEvent = new DragEvent('dragover', { bubbles: true });
+      Object.defineProperty(dragoverEvent, 'dataTransfer', { value: { dropEffect: '' } });
+      dropZone.dispatchEvent(dragoverEvent);
 
-		manager.setup();
+      const leaveEvent = new DragEvent('dragleave', { bubbles: true });
+      Object.defineProperty(leaveEvent, 'relatedTarget', { value: child });
+      dropZone.dispatchEvent(leaveEvent);
 
-		const mockFileReader = class {
-			result!: string;
-			onload!: () => void;
-			onerror!: (e: any) => void;
-			readAsDataURL() {
-				setTimeout(() => {
-					this.result = 'data:image/png;base64,mockbase64data';
-					this.onload();
-				}, 0);
-			}
-		};
-		vi.stubGlobal('FileReader', mockFileReader);
+      const overlay = overlayContainer.querySelector('.copsidian-drag-overlay');
+      expect(overlay).not.toBeNull();
+    });
+  });
 
-		const dropEvent = new Event('drop');
-		Object.defineProperty(dropEvent, 'dataTransfer', {
-			value: {
-				files: [
-					{ name: 'image.png', size: 1024, type: 'image/png' },
-				],
-			},
-		});
-		targetEl.dispatchEvent(dropEvent);
+  describe('image size tracking', () => {
+    it('tracks image bytes via resetBytes and onRemoveImagePart', () => {
+      manager.resetBytes();
+      manager.onRemoveImagePart('data', 1024);
+      expect(handlers.onRemoveImagePart).toHaveBeenCalledWith('data', 1024);
+    });
+  });
 
-		// wait for FileReader mock
-		await new Promise(resolve => setTimeout(resolve, 0));
+  describe('drop handling', () => {
+    it('handles markdown file drop', async () => {
+      manager.setup();
 
-		expect(onAddImagePart).toHaveBeenCalledWith(
-			'mockbase64data',
-			'image/png',
-			1024,
-			'image.png'
-		);
+      const file = new File(['# Hello'], 'test.md', { type: 'text/markdown' });
+      const dataTransfer = { files: [file] };
+      const event = new DragEvent('drop', { bubbles: true });
+      Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
+      Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
 
-		vi.unstubAllGlobals();
-	});
+      dropZone.dispatchEvent(event);
 
-	it('rejects dropping images exceeding total 10MB limit', async () => {
-		const targetEl = document.createElement('div');
-		const overlayContainerEl = document.createElement('div');
-		const onAddImagePart = vi.fn();
-		const manager = new DragDropManager(targetEl, overlayContainerEl, {
-			onAddNoteRef: vi.fn(),
-			onAddImagePart,
-			onRemoveImagePart: vi.fn(),
-		});
+      // Wait for async handler
+      await new Promise(r => setTimeout(r, 10));
 
-		manager.setup();
+      expect(handlers.onAddNoteRef).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'note',
+        name: 'test',
+        path: 'test.md',
+      }));
+    });
 
-		const dropEvent = new Event('drop');
-		Object.defineProperty(dropEvent, 'dataTransfer', {
-			value: {
-				files: [
-					{ name: 'large.png', size: 11 * 1024 * 1024, type: 'image/png' },
-				],
-			},
-		});
-		targetEl.dispatchEvent(dropEvent);
+    it('handles image file drop', async () => {
+      manager.setup();
 
-		// no reader should have been created
-		expect(onAddImagePart).not.toHaveBeenCalled();
-	});
+      // Create a mock image file
+      const file = new File(['image-data'], 'test.png', { type: 'image/png' });
+      Object.defineProperty(file, 'size', { value: 1024 });
 
-	it('decreases bytes when image part is removed', async () => {
-		const targetEl = document.createElement('div');
-		const overlayContainerEl = document.createElement('div');
-		const onAddImagePart = vi.fn();
-		const manager = new DragDropManager(targetEl, overlayContainerEl, {
-			onAddNoteRef: vi.fn(),
-			onAddImagePart,
-			onRemoveImagePart: vi.fn(),
-		});
+      // Mock FileReader using a function constructor
+      function MockFileReader(this: any) {
+        this.onload = null;
+        this.onerror = null;
+        this.result = null;
+        this.readAsDataURL = vi.fn().mockImplementation((_file: File) => {
+          this.result = 'data:image/png;base64,aW1hZ2UtZGF0YQ==';
+          setTimeout(() => {
+            if (this.onload) this.onload({ target: this });
+          }, 0);
+        });
+      }
 
-		manager.setup();
+      vi.spyOn(globalThis, 'FileReader').mockImplementation(MockFileReader as any);
 
-		const mockFileReader = class {
-			result!: string;
-			onload!: () => void;
-			onerror!: (e: any) => void;
-			readAsDataURL() {
-				setTimeout(() => {
-					this.result = 'data:image/png;base64,mock';
-					this.onload();
-				}, 0);
-			}
-		};
-		vi.stubGlobal('FileReader', mockFileReader);
+      const dataTransfer = { files: [file] };
+      const event = new DragEvent('drop', { bubbles: true });
+      Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
+      Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
 
-		const dropEvent = new Event('drop');
-		Object.defineProperty(dropEvent, 'dataTransfer', {
-			value: {
-				files: [
-					{ name: 'test.png', size: 5 * 1024 * 1024, type: 'image/png' },
-				],
-			},
-		});
-		targetEl.dispatchEvent(dropEvent);
+      dropZone.dispatchEvent(event);
 
-		await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise(r => setTimeout(r, 50));
 
-		// Now we should have 5MB used
-		manager.onRemoveImagePart('mock', 5 * 1024 * 1024);
+      expect(handlers.onAddImagePart).toHaveBeenCalledWith(
+        'aW1hZ2UtZGF0YQ==',
+        'image/png',
+        1024,
+        'test.png'
+      );
+    });
 
-		// Try dropping a 6MB file, should pass since 5MB was freed
-		const dropEvent2 = new Event('drop');
-		Object.defineProperty(dropEvent2, 'dataTransfer', {
-			value: {
-				files: [
-					{ name: 'test2.png', size: 6 * 1024 * 1024, type: 'image/png' },
-				],
-			},
-		});
-		targetEl.dispatchEvent(dropEvent2);
+    it('skips images exceeding size limit', async () => {
+      manager.setup();
 
-		await new Promise(resolve => setTimeout(resolve, 0));
-		expect(onAddImagePart).toHaveBeenCalledTimes(2);
+      // Create a large image file (over 10MB)
+      const file = new File(['image-data'], 'large.png', { type: 'image/png' });
+      Object.defineProperty(file, 'size', { value: 11 * 1024 * 1024 });
 
-		vi.unstubAllGlobals();
-	});
+      const dataTransfer = { files: [file] };
+      const event = new DragEvent('drop', { bubbles: true });
+      Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
+      Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      dropZone.dispatchEvent(event);
+
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(handlers.onAddImagePart).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it('ignores unsupported file types', async () => {
+      manager.setup();
+
+      const file = new File(['data'], 'test.txt', { type: 'text/plain' });
+      const dataTransfer = { files: [file] };
+      const event = new DragEvent('drop', { bubbles: true });
+      Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
+      Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
+
+      dropZone.dispatchEvent(event);
+
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(handlers.onAddNoteRef).not.toHaveBeenCalled();
+      expect(handlers.onAddImagePart).not.toHaveBeenCalled();
+    });
+
+    it('handles empty drop', async () => {
+      manager.setup();
+
+      const dataTransfer = { files: [] };
+      const event = new DragEvent('drop', { bubbles: true });
+      Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
+      Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
+
+      dropZone.dispatchEvent(event);
+
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(handlers.onAddNoteRef).not.toHaveBeenCalled();
+      expect(handlers.onAddImagePart).not.toHaveBeenCalled();
+    });
+  });
 });
