@@ -303,6 +303,45 @@ describe('CopsidianSettingsTab locale refresh', () => {
     expect(tab.containerEl.textContent).not.toContain('Run Diagnostics');
   });
 
+  it('disables HTTP and SSE MCP options when agent capabilities do not support them', async () => {
+    setLocale('en');
+    const plugin = createPlugin({ refreshLocale: vi.fn() });
+    const caps = { mcpCapabilities: { http: false, sse: false } };
+    vi.mocked(plugin.getClient()!.getAgentCapabilities).mockReturnValue(caps);
+
+    plugin.settings.mcpServers.push({
+      type: 'stdio',
+      id: 'test-mcp',
+      enabled: true,
+      name: 'Test MCP',
+      command: 'npx',
+      args: [],
+      env: []
+    });
+
+    const tab = new CopsidianSettingsTab(plugin);
+    tab.display();
+
+    const mcpTypeDropdowns = tab.containerEl.querySelectorAll('.copsidian-mcp-server select');
+    expect(mcpTypeDropdowns.length).toBe(1);
+
+    const select = mcpTypeDropdowns[0] as HTMLSelectElement;
+
+    const httpOption = select.querySelector('option[value="http"]') as HTMLOptionElement;
+    expect(httpOption).toBeDefined();
+    expect(httpOption.disabled).toBe(true);
+    expect(httpOption.textContent).toContain('HTTP MCP is not supported');
+
+    const sseOption = select.querySelector('option[value="sse"]') as HTMLOptionElement;
+    expect(sseOption).toBeDefined();
+    expect(sseOption.disabled).toBe(true);
+    expect(sseOption.textContent).toContain('SSE MCP is not supported');
+
+    const stdioOption = select.querySelector('option[value="stdio"]') as HTMLOptionElement;
+    expect(stdioOption).toBeDefined();
+    expect(stdioOption.disabled).toBe(false);
+  });
+
   it('does not connect or create metadata sessions when settings opens with an empty snapshot', async () => {
     setLocale('en');
     const plugin = createPlugin({ refreshLocale: vi.fn() }, {}, {
@@ -360,6 +399,7 @@ function createPlugin(
       currentModelId: null,
       currentModeId: null,
     })),
+    getAgentCapabilities: vi.fn(() => ({})),
   };
   return {
     app: {

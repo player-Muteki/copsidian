@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.24
+
+### Added
+- Integrate `AgentCapabilities` with the UI components (`WelcomeView`, `SessionDropdown`, `DragDropManager`, and settings MCP server types) to dynamically enable, disable, and hide features.
+- Added i18n hint texts and tooltip notifications indicating when an agent does not support certain capabilities like auth methods, forking, resuming, closing sessions, sending image contexts, or specific MCP server types.
+
+### Changed
+- Typed `getAgentCapabilities` to return a fully defined interface rather than `Record<string, unknown>`.
+
+### Tested
+- Expanded unit testing to cover new capability-aware conditionals in `WelcomeView`, `SessionDropdown`, `DragDropManager`, and `CopsidianSettingsTab`.
+
 ## 0.0.23 - 2026-05-26
 
 ### Added

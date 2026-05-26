@@ -1,5 +1,6 @@
-import type { ContextRef } from '../types';
+import type { ContextRef, AgentCapabilities } from '../types';
 import { t, onLocaleChange } from '../i18n/index';
+import { Notice } from 'obsidian';
 
 export interface DragDropHandlers {
 	onAddNoteRef: (ref: ContextRef) => void;
@@ -19,7 +20,8 @@ export class DragDropManager {
 	constructor(
 		private dropZoneEl: HTMLElement,
 		private overlayContainerEl: HTMLElement,
-		private handlers: DragDropHandlers
+		private handlers: DragDropHandlers,
+		private getCapabilities: () => AgentCapabilities | null
 	) {
 		onLocaleChange(() => {
 			if (this.dragOverlayEl) {
@@ -104,6 +106,12 @@ export class DragDropManager {
 				};
 				this.handlers.onAddNoteRef(ref);
 			} else if (file.type.startsWith('image/')) {
+				const caps = this.getCapabilities();
+				if (caps?.promptCapabilities?.image === false) {
+					new Notice(t().dragDrop.imageNotSupported);
+					continue;
+				}
+
 				// Image → base64 PromptPart
 				try {
 					const data = await this.fileToBase64(file);

@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { SessionDropdown } from './sessionDropdown';
 import { installObsidianDomHelpers } from '../test/domHelpers';
 import { setLocale } from '../i18n/index';
+import type { AgentCapabilities } from '../types';
 
 installObsidianDomHelpers();
 
@@ -19,6 +20,7 @@ describe('SessionDropdown', () => {
     onDelete: ReturnType<typeof vi.fn>;
     onNewSession: ReturnType<typeof vi.fn>;
   };
+  let mockCapabilities: AgentCapabilities | null;
   let dropdown: SessionDropdown;
 
   beforeEach(() => {
@@ -43,6 +45,7 @@ describe('SessionDropdown', () => {
       onDelete: vi.fn().mockResolvedValue(undefined),
       onNewSession: vi.fn().mockResolvedValue(undefined),
     };
+    mockCapabilities = null;
 
     dropdown = new SessionDropdown(
       container,
@@ -50,6 +53,7 @@ describe('SessionDropdown', () => {
       sessionStore as any,
       () => 'session-1',
       callbacks as any,
+      () => mockCapabilities
     );
   });
 
@@ -94,6 +98,50 @@ describe('SessionDropdown', () => {
       const items = container.querySelectorAll('.copsidian-session-list');
       expect(items.length).toBe(0);
     });
+
+    it('hides search and limits items when list capability is false', () => {
+      mockCapabilities = { sessionCapabilities: { list: false } };
+      dropdown.open();
+
+      const search = container.querySelector('.copsidian-session-search');
+      expect(search).toBeNull();
+
+      const items = container.querySelectorAll('.copsidian-session-item');
+      expect(items.length).toBe(1);
+      expect(items[0].querySelector('.session-label')?.textContent).toBe('Chat 1');
+    });
+
+    it('disables fork, resume, and close buttons when capabilities are false', () => {
+      mockCapabilities = { sessionCapabilities: { fork: false, resume: false, close: false } };
+      dropdown.open();
+
+      const activeItem = container.querySelector('.copsidian-session-item.active') as HTMLElement;
+
+      const forkBtn = activeItem.querySelector('.session-fork');
+      expect(forkBtn?.classList.contains('disabled')).toBe(true);
+
+      const resumeBtn = activeItem.querySelector('.session-resume');
+      expect(resumeBtn?.classList.contains('disabled')).toBe(true);
+
+      const closeBtn = activeItem.querySelector('.session-delete');
+      expect(closeBtn?.classList.contains('disabled')).toBe(true);
+    });
+
+    it('enables fork, resume, and close buttons when capabilities are true', () => {
+      mockCapabilities = { sessionCapabilities: { fork: true, resume: true, close: true } };
+      dropdown.open();
+
+      const activeItem = container.querySelector('.copsidian-session-item.active') as HTMLElement;
+
+      const forkBtn = activeItem.querySelector('.session-fork');
+      expect(forkBtn?.classList.contains('disabled')).toBe(false);
+
+      const resumeBtn = activeItem.querySelector('.session-resume');
+      expect(resumeBtn?.classList.contains('disabled')).toBe(false);
+
+      const closeBtn = activeItem.querySelector('.session-delete');
+      expect(closeBtn?.classList.contains('disabled')).toBe(false);
+    });
   });
 
   describe('close', () => {
@@ -137,6 +185,7 @@ describe('SessionDropdown', () => {
     });
 
     it('calls onNewSession when deleting current session', async () => {
+      mockCapabilities = { sessionCapabilities: { close: true } };
       dropdown.open();
       const deleteBtn = container.querySelector('.copsidian-session-item.active .session-delete') as HTMLElement;
       deleteBtn.click();
@@ -147,6 +196,7 @@ describe('SessionDropdown', () => {
     });
 
     it('does not call onNewSession when deleting non-current session', async () => {
+      mockCapabilities = { sessionCapabilities: { close: true } };
       dropdown.open();
       const items = container.querySelectorAll('.copsidian-session-item');
       const deleteBtn = items[1].querySelector('.session-delete') as HTMLElement;

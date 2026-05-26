@@ -2,6 +2,13 @@ export type SessionId = string;
 export type ToolCallId = string;
 export type MessageId = string;
 
+export interface AgentCapabilities {
+  sessionCapabilities?: { close?: boolean; fork?: boolean; list?: boolean; resume?: boolean };
+  promptCapabilities?: { audio?: boolean; embeddedContext?: boolean; image?: boolean };
+  mcpCapabilities?: { http?: boolean; sse?: boolean };
+  authMethods?: { id: string; name: string; description?: string }[];
+}
+
 export interface SessionMeta {
   sessionId: string;
   cwd?: string;

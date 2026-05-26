@@ -95,7 +95,7 @@ export class AgentRuntime implements OpencodeClient {
     return reject?.optionId ?? req.options[0]?.optionId ?? 'reject_once';
   }
 
-  getAgentCapabilities(): Record<string, unknown> | null { return this.acp.getAgentCapabilities(); }
+  getAgentCapabilities(): import('../types').AgentCapabilities | null { return this.acp.getAgentCapabilities(); }
   getAvailableAgents(): Promise<ModeOption[]> { return this.acp.getAvailableAgents(); }
   getAvailableModels(): Promise<ModelOption[]> { return this.acp.getAvailableModels(); }
   getAvailableCommands(): Promise<AvailableCommand[]> { return this.acp.getAvailableCommands(); }

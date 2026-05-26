@@ -1,12 +1,15 @@
 import { t, onLocaleChange } from '../i18n/index';
 
+import type { AgentCapabilities } from '../types';
+
 export class WelcomeView {
 	private welcomeEl: HTMLDivElement | null = null;
-	private containerEl: HTMLElement;
 	private isConnected = false;
 
-	constructor(containerEl: HTMLElement) {
-		this.containerEl = containerEl;
+	constructor(
+		private containerEl: HTMLElement,
+		private getCapabilities?: () => AgentCapabilities | null,
+	) {
 		onLocaleChange(() => {
 			if (this.isVisible()) {
 				this.show(this.isConnected);
@@ -31,6 +34,18 @@ export class WelcomeView {
 
 		const status = welcome.createDiv({ cls: 'copsidian-welcome-status' });
 		status.createSpan({ text: isConnected ? t().welcome.connected : t().welcome.disconnected });
+
+		if (isConnected) {
+			const caps = this.getCapabilities?.();
+			if (caps?.authMethods && Array.isArray(caps.authMethods) && caps.authMethods.length > 0) {
+				const authArea = welcome.createDiv({ cls: 'copsidian-welcome-auth' });
+				for (const method of caps.authMethods) {
+					authArea.createDiv({ text: `${method.id} - ${method.name}` });
+				}
+				const hintText = t().welcome.authMethodsHint.replace('{command}', t().welcome.authLoginCommand);
+				authArea.createDiv({ text: hintText, cls: 'copsidian-welcome-auth-hint' });
+			}
+		}
 	}
 
 	hide(): void {
