@@ -221,7 +221,6 @@ export class CopsidianView extends ItemView {
 				},
 				onNewSession: async () => this.newSession(),
 			},
-				() => this.plugin.getClient()?.getAgentCapabilities() ?? null
 		);
 
 		// ── Messages ──
@@ -230,7 +229,7 @@ export class CopsidianView extends ItemView {
 
 		this.permissionBanner = new PermissionBanner(this.messagesEl);
 		this.inlineEditPanel = new InlineEditPanel(this.contentEl);
-		this.welcomeView = new WelcomeView(this.messagesEl, () => this.plugin.getClient()?.getAgentCapabilities() ?? null);
+		this.welcomeView = new WelcomeView(this.messagesEl);
 
 		// ── Context chips ──
 		this.contextChipsEl = el.createDiv({ cls: 'copsidian-context-chips' });
@@ -325,28 +324,23 @@ export class CopsidianView extends ItemView {
 		this.setupSmartScroll();
 
 		// Setup drag and drop
-			this.dragDropManager = new DragDropManager(
-				this.messagesEl,
-				this.messagesEl,
-				{
-					onAddNoteRef: (ref) => this.addChip(ref, 'manual'),
-					onAddImagePart: (data, mimeType, size, name) => {
-						this.pendingImageParts.push({ type: 'image', mimeType, data });
-						const chip = this.contextChipsEl.createDiv({
-							cls: 'copsidian-chip',
-							text: `🖼 ${name}`,
-						});
-						chip.dataset.kind = 'image';
-						chip.onclick = () => {
-							this.pendingImageParts = this.pendingImageParts.filter(p => p.data !== data);
-							this.dragDropManager.onRemoveImagePart(data, size);
-							chip.remove();
-						};
-					},
-					onRemoveImagePart: (_data, _size) => {}
+		this.dragDropManager = new DragDropManager(this.messagesEl, this.messagesEl, {
+			onAddNoteRef: (ref) => this.addChip(ref, 'manual'),
+			onAddImagePart: (data, mimeType, size, name) => {
+				this.pendingImageParts.push({ type: 'image', mimeType, data });
+				const chip = this.contextChipsEl.createDiv({
+					cls: 'copsidian-chip',
+					text: `🖼 ${name}`,
+				});
+				chip.dataset.kind = 'image';
+				chip.onclick = () => {
+					this.pendingImageParts = this.pendingImageParts.filter(p => p.data !== data);
+					this.dragDropManager.onRemoveImagePart(data, size);
+					chip.remove();
+				};
 			},
-				() => this.plugin.getClient()?.getAgentCapabilities() ?? null
-			);
+			onRemoveImagePart: (_data, _size) => {}
+		});
 		this.dragDropManager.setup();
 	}
 

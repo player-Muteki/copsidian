@@ -40,12 +40,7 @@ export class PluginSettingTab {
 }
 
 export class Notice {
-  constructor(public message: string) {
-    const el = document.createElement('div');
-    el.className = 'notice';
-    el.textContent = message;
-    document.body.appendChild(el);
-  }
+  constructor(public message: string) {}
 }
 
 export class Setting {

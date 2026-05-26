@@ -11,8 +11,6 @@ const en = {
     },
     connected: '● Connected',
     disconnected: '○ Disconnected',
-    authMethodsHint: 'Please run `{command}` in your terminal and reconnect.',
-    authLoginCommand: 'opencode auth login',
   },
 
   header: {
@@ -29,12 +27,6 @@ const en = {
     defaultTitle: 'Chat {time}',
   },
 
-  sessionDropdown: {
-    forkDisabled: 'Fork is not supported by the agent.',
-    resumeDisabled: 'Resume is not supported by the agent.',
-    closeDisabled: 'Close is not supported by the agent.',
-  },
-
   reconnect: {
     text: 'Reconnect',
     connecting: 'Reconnecting…',
@@ -44,10 +36,6 @@ const en = {
   newMessages: '↓ New messages',
 
   dragOverlay: 'Drop to attach',
-
-  dragDrop: {
-    imageNotSupported: 'Image input is not supported by the current agent.',
-  },
 
   permission: {
     title: 'Permission: {title}',
@@ -256,8 +244,6 @@ const en = {
       envValue: 'Value',
       envAdd: '+ Add Variable',
     },
-    mcpHttpDisabled: 'HTTP MCP is not supported by the agent.',
-    mcpSseDisabled: 'SSE MCP is not supported by the agent.',
     sync: {
       heading: 'Sync Rules',
       add: '+ Add Rule',

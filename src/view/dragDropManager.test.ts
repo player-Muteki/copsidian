@@ -29,14 +29,7 @@ describe('DragDropManager', () => {
       onRemoveImagePart: vi.fn() as any,
     };
 
-    manager = new DragDropManager(dropZone, overlayContainer, handlers as any, () => mockCapabilities);
-  });
-
-  let mockCapabilities: any = null;
-
-  beforeEach(() => {
-    mockCapabilities = null;
-    document.querySelectorAll('.notice').forEach(n => n.remove());
+    manager = new DragDropManager(dropZone, overlayContainer, handlers as any);
   });
 
   describe('setup and teardown', () => {
@@ -127,25 +120,6 @@ describe('DragDropManager', () => {
   });
 
   describe('drop handling', () => {
-    it('rejects image drop if promptCapabilities.image is false', async () => {
-      mockCapabilities = { promptCapabilities: { image: false } };
-      manager.setup();
-
-      const file = new File(['mock-image-data'], 'test.png', { type: 'image/png' });
-      const dataTransfer = { files: [file] };
-      const event = new DragEvent('drop', { bubbles: true });
-      Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
-      Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
-
-      dropZone.dispatchEvent(event);
-
-      await new Promise(r => setTimeout(r, 10));
-
-      expect(handlers.onAddImagePart).not.toHaveBeenCalled();
-      const notice = document.querySelector('.notice');
-      expect(notice?.textContent).toBe('Image input is not supported by the current agent.');
-    });
-
     it('handles markdown file drop', async () => {
       manager.setup();
 

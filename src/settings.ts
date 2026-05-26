@@ -638,29 +638,11 @@ export class CopsidianSettingsTab extends PluginSettingTab {
 
     const currentType = server.type ?? 'stdio';
 
-    const caps = this.plugin.getClient()?.getAgentCapabilities() ?? null;
-
     new Setting(block)
       .setName('Type')
-      .addDropdown((d) => {
-        d.addOptions({ stdio: 'stdio', http: 'http', sse: 'sse' }).setValue(currentType);
-
-        if (caps && caps.mcpCapabilities?.http === false) {
-          const opt = d.selectEl.querySelector('option[value="http"]') as HTMLOptionElement;
-          if (opt) {
-            opt.disabled = true;
-            opt.textContent += ` (${locale().settings.mcpHttpDisabled})`;
-          }
-        }
-        if (caps && caps.mcpCapabilities?.sse === false) {
-          const opt = d.selectEl.querySelector('option[value="sse"]') as HTMLOptionElement;
-          if (opt) {
-            opt.disabled = true;
-            opt.textContent += ` (${locale().settings.mcpSseDisabled})`;
-          }
-        }
-
-        d.onChange(async (v) => {
+      .addDropdown((d) => d.addOptions({ stdio: 'stdio', http: 'http', sse: 'sse' })
+        .setValue(currentType)
+        .onChange(async (v) => {
           const newType = v as 'stdio' | 'http' | 'sse';
           if (newType === 'stdio') {
             const newServer = { type: 'stdio' as const, id: server.id, enabled: server.enabled, name: server.name, command: 'npx', args: [], env: [] };
@@ -676,8 +658,7 @@ export class CopsidianSettingsTab extends PluginSettingTab {
           }
           await this.save();
           this.display();
-        });
-      });
+        }));
 
     if (currentType === 'stdio') {
       new Setting(block)

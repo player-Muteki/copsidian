@@ -13,8 +13,6 @@ const zh: Locale = {
     },
     connected: '● 已连接',
     disconnected: '○ 未连接',
-    authMethodsHint: '请在终端中运行 `{command}` 后重新连接。',
-    authLoginCommand: 'opencode auth login',
   },
 
   header: {
@@ -31,12 +29,6 @@ const zh: Locale = {
     defaultTitle: '会话 {time}',
   },
 
-  sessionDropdown: {
-    forkDisabled: '当前 Agent 不支持 Fork。',
-    resumeDisabled: '当前 Agent 不支持 Resume。',
-    closeDisabled: '当前 Agent 不支持 Close。',
-  },
-
   reconnect: {
     text: '重新连接',
     connecting: '连接中…',
@@ -46,10 +38,6 @@ const zh: Locale = {
   newMessages: '↓ 新消息',
 
   dragOverlay: '拖放以附加',
-
-  dragDrop: {
-    imageNotSupported: '当前 Agent 不支持图片输入。',
-  },
 
   permission: {
     title: '权限：{title}',
@@ -258,8 +246,6 @@ const zh: Locale = {
       envValue: '值',
       envAdd: '+ 添加变量',
     },
-    mcpHttpDisabled: '当前 Agent 不支持 HTTP MCP。',
-    mcpSseDisabled: '当前 Agent 不支持 SSE MCP。',
     sync: {
       heading: '同步规则',
       add: '+ 添加规则',

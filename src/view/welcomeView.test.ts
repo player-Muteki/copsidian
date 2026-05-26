@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { WelcomeView } from './welcomeView';
 import { installObsidianDomHelpers } from '../test/domHelpers';
 import { t } from '../i18n/index';
-import type { AgentCapabilities } from '../types';
 
 installObsidianDomHelpers();
 
@@ -100,58 +99,5 @@ describe('WelcomeView', () => {
 
 		const status = elements[0].querySelector('.copsidian-welcome-status span');
 		expect(status?.textContent).toBe(t().welcome.disconnected);
-	});
-
-	it('renders authMethods when connected and populated', () => {
-		const container = document.createElement('div');
-		const caps: AgentCapabilities = {
-			authMethods: [
-				{ id: 'github', name: 'GitHub' },
-				{ id: 'google', name: 'Google' }
-			]
-		};
-		const view = new WelcomeView(container, () => caps);
-
-		view.show(true);
-
-		const authArea = container.querySelector('.copsidian-welcome-auth');
-		expect(authArea).not.toBeNull();
-		expect(authArea?.textContent).toContain('github - GitHub');
-		expect(authArea?.textContent).toContain('google - Google');
-		expect(authArea?.textContent).toContain(t().welcome.authLoginCommand);
-	});
-
-	it('does not render authMethods when disconnected', () => {
-		const container = document.createElement('div');
-		const caps: AgentCapabilities = {
-			authMethods: [
-				{ id: 'github', name: 'GitHub' }
-			]
-		};
-		const view = new WelcomeView(container, () => caps);
-
-		view.show(false);
-
-		const authArea = container.querySelector('.copsidian-welcome-auth');
-		expect(authArea).toBeNull();
-	});
-
-	it('does not render authMethods when empty', () => {
-		const container = document.createElement('div');
-		const caps: AgentCapabilities = {
-			authMethods: []
-		};
-		const view = new WelcomeView(container, () => caps);
-
-		view.show(true);
-
-		const authArea = container.querySelector('.copsidian-welcome-auth');
-		expect(authArea).toBeNull();
-
-		const elements = container.querySelectorAll('.copsidian-welcome');
-		expect(elements.length).toBe(1);
-
-		const status = elements[0].querySelector('.copsidian-welcome-status span');
-		expect(status?.textContent).toBe(t().welcome.connected);
 	});
 });
