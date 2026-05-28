@@ -657,17 +657,12 @@ export class CopsidianSettingsTab extends PluginSettingTab {
         d
         .onChange(async (v) => {
           const newType = v as 'stdio' | 'http' | 'sse';
+          const idx = this.plugin.settings.mcpServers.indexOf(server);
+          if (idx === -1) return;
           if (newType === 'stdio') {
-            const newServer = { type: 'stdio' as const, id: server.id, enabled: server.enabled, name: server.name, command: 'npx', args: [], env: [] };
-            Object.assign(server, newServer);
-            if ('url' in server) delete (server as any).url;
-            if ('headers' in server) delete (server as any).headers;
+            this.plugin.settings.mcpServers[idx] = { type: 'stdio', id: server.id, enabled: server.enabled, name: server.name, command: 'npx', args: [], env: [] };
           } else {
-            const newServer = { type: newType, id: server.id, enabled: server.enabled, name: server.name, url: 'http://localhost:3000', headers: [] };
-            Object.assign(server, newServer);
-            if ('command' in server) delete (server as any).command;
-            if ('args' in server) delete (server as any).args;
-            if ('env' in server) delete (server as any).env;
+            this.plugin.settings.mcpServers[idx] = { type: newType, id: server.id, enabled: server.enabled, name: server.name, url: 'http://localhost:3000', headers: [] };
           }
           await this.save();
           this.display();
@@ -675,21 +670,22 @@ export class CopsidianSettingsTab extends PluginSettingTab {
       });
 
     if (currentType === 'stdio') {
+      const stdioServer = server as Extract<McpServerConfig, { type: 'stdio' }>;
       new Setting(block)
         .setName(labels.command)
         .setDesc(labels.commandDesc)
-        .addText((text) => text.setValue('command' in server ? (server as any).command : '')
-          .onChange(async (value) => { (server as any).command = value.trim(); await this.save(); }));
+        .addText((text) => text.setValue(stdioServer.command ?? '')
+          .onChange(async (value) => { stdioServer.command = value.trim(); await this.save(); }));
 
       new Setting(block)
         .setName(labels.args)
         .setDesc(labels.argsDesc)
         .addTextArea((text) => {
-          text.setValue(('args' in server ? (server as any).args : []).join('\n'));
+          text.setValue((stdioServer.args ?? []).join('\n'));
           text.inputEl.rows = 4;
           text.inputEl.classList.add('copsidian-mcp-args');
           text.onChange(async (value) => {
-            (server as any).args = value.split('\n').map((arg: string) => arg.trim()).filter(Boolean);
+            stdioServer.args = value.split('\n').map((arg) => arg.trim()).filter(Boolean);
             await this.save();
           });
         });
@@ -699,7 +695,7 @@ export class CopsidianSettingsTab extends PluginSettingTab {
 
       const renderEnvVars = () => {
         envDetails.querySelectorAll('.copsidian-mcp-env-var, .copsidian-mcp-env-add').forEach((el) => el.remove());
-        const envVars = ('env' in server ? (server as any).env : []) ?? [];
+        const envVars = stdioServer.env ?? [];
         for (let i = 0; i < envVars.length; i++) {
           const envVar = envVars[i];
           const row = envDetails.createDiv({ cls: 'copsidian-mcp-env-var' });
@@ -725,7 +721,7 @@ export class CopsidianSettingsTab extends PluginSettingTab {
 
           const delEnvBtn = row.createEl('button', { text: '✕' });
           delEnvBtn.onclick = async () => {
-            (server as any).env = (server as any).env?.filter((_: any, index: number) => index !== i);
+            stdioServer.env = stdioServer.env?.filter((_, index) => index !== i);
             await this.save();
             renderEnvVars();
           };
@@ -736,26 +732,27 @@ export class CopsidianSettingsTab extends PluginSettingTab {
           .setName('')
           .addButton((b) => b.setButtonText(labels.envAdd)
             .onClick(async () => {
-              if (!('env' in server) || !(server as any).env) (server as any).env = [];
-              (server as any).env.push({ name: '', value: '' });
+              if (!stdioServer.env) stdioServer.env = [];
+              stdioServer.env.push({ name: '', value: '' });
               await this.save();
               renderEnvVars();
             }));
       };
       renderEnvVars();
     } else {
+      const httpServer = server as Extract<McpServerConfig, { type: 'http' }>;
       new Setting(block)
         .setName('URL')
         .setDesc('Server URL')
-        .addText((text) => text.setValue('url' in server ? (server as any).url : '')
-          .onChange(async (value) => { (server as any).url = value.trim(); await this.save(); }));
+        .addText((text) => text.setValue(httpServer.url ?? '')
+          .onChange(async (value) => { httpServer.url = value.trim(); await this.save(); }));
 
       const headersDetails = block.createEl('details', { cls: 'copsidian-mcp-headers-details' });
       headersDetails.createEl('summary', { text: 'Headers' });
 
       const renderHeaders = () => {
         headersDetails.querySelectorAll('.copsidian-mcp-header-var, .copsidian-mcp-header-add').forEach((el) => el.remove());
-        const headersVars = ('headers' in server ? (server as any).headers : []) ?? [];
+        const headersVars = httpServer.headers ?? [];
         for (let i = 0; i < headersVars.length; i++) {
           const headerVar = headersVars[i];
           const row = headersDetails.createDiv({ cls: 'copsidian-mcp-header-var' });
@@ -781,7 +778,7 @@ export class CopsidianSettingsTab extends PluginSettingTab {
 
           const delHeaderBtn = row.createEl('button', { text: '✕' });
           delHeaderBtn.onclick = async () => {
-            (server as any).headers = (server as any).headers?.filter((_: any, index: number) => index !== i);
+            httpServer.headers = httpServer.headers?.filter((_, index) => index !== i);
             await this.save();
             renderHeaders();
           };
@@ -792,8 +789,8 @@ export class CopsidianSettingsTab extends PluginSettingTab {
           .setName('')
           .addButton((b) => b.setButtonText('+ Add Header')
             .onClick(async () => {
-              if (!('headers' in server) || !(server as any).headers) (server as any).headers = [];
-              (server as any).headers.push({ name: '', value: '' });
+              if (!httpServer.headers) httpServer.headers = [];
+              httpServer.headers.push({ name: '', value: '' });
               await this.save();
               renderHeaders();
             }));

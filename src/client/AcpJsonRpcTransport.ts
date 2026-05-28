@@ -1,5 +1,5 @@
 import { createInterface, type Interface } from 'readline';
-import { AcpTransportError, AcpTimeoutError, AcpProtocolError } from './AcpErrors';
+import { AcpTransportError, AcpTimeoutError, AcpProtocolError, AcpAbortError } from './AcpErrors';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -8,6 +8,7 @@ interface PendingRequest {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timeout: NodeJS.Timeout | null;
+  abortHandler: (() => void) | null;
 }
 
 type NotificationHandler = (params: unknown) => void | Promise<void>;
@@ -47,7 +48,7 @@ export class AcpJsonRpcTransport {
     });
   }
 
-  request<T>(method: string, params?: Record<string, unknown>, timeoutMs?: number): Promise<T> {
+  request<T>(method: string, params?: Record<string, unknown>, timeoutMs?: number, signal?: AbortSignal): Promise<T> {
     if (this.disposed) return Promise.reject(new AcpTransportError('Transport closed'));
     const id = this.nextId++;
     const msg = { jsonrpc: '2.0', id, method, params };
@@ -55,13 +56,31 @@ export class AcpJsonRpcTransport {
 
     return new Promise<T>((resolve, reject) => {
       let timeout: NodeJS.Timeout | null = null;
+      let abortHandler: (() => void) | null = null;
+
       if (effectiveTimeout > 0) {
         timeout = setTimeout(() => {
           this.pending.delete(id);
           reject(new AcpTimeoutError(method, effectiveTimeout));
         }, effectiveTimeout);
       }
-      this.pending.set(id, { method, resolve: resolve as (v: unknown) => void, reject, timeout });
+
+      if (signal) {
+        if (signal.aborted) {
+          if (timeout) clearTimeout(timeout);
+          reject(new AcpAbortError(method));
+          return;
+        }
+        abortHandler = () => {
+          if (timeout) clearTimeout(timeout);
+          this.pending.delete(id);
+          this.send({ jsonrpc: '2.0', id, method: 'session/cancel', params: {} });
+          reject(new AcpAbortError(method));
+        };
+        signal.addEventListener('abort', abortHandler, { once: true });
+      }
+
+      this.pending.set(id, { method, resolve: resolve as (v: unknown) => void, reject, timeout, abortHandler });
       this.send(msg);
     });
   }
@@ -93,6 +112,7 @@ export class AcpJsonRpcTransport {
   rejectPending(error: Error): void {
     for (const [, entry] of this.pending) {
       if (entry.timeout) clearTimeout(entry.timeout);
+      if (entry.abortHandler) entry.abortHandler();
       entry.reject(error);
     }
     this.pending.clear();
@@ -134,6 +154,7 @@ export class AcpJsonRpcTransport {
       this.pending.delete(id);
       if (entry) {
         if (entry.timeout) clearTimeout(entry.timeout);
+        if (entry.abortHandler) entry.abortHandler();
         entry.resolve(parsed.result);
       }
     } else if (id !== undefined && hasError) {
@@ -141,6 +162,7 @@ export class AcpJsonRpcTransport {
       this.pending.delete(id);
       if (entry) {
         if (entry.timeout) clearTimeout(entry.timeout);
+        if (entry.abortHandler) entry.abortHandler();
         const errObj = parsed.error as { code?: number; message?: string; data?: unknown };
         entry.reject(
           new AcpProtocolError(errObj?.message ?? 'Unknown error', entry.method, errObj?.code, errObj?.data),

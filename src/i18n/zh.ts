@@ -57,6 +57,8 @@ const zh: Locale = {
 
   error: {
     compact: '压缩失败',
+    timeout: '请求超时',
+    processExit: 'OpenCode 进程已退出',
   },
 
   message: {

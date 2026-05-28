@@ -324,10 +324,29 @@ export class ChatRenderer {
     this.scrollToBottom();
   }
 
-  addError(text: string): void {
+  addError(text: string, actionLabel?: string, actionCallback?: () => void | Promise<void>): void {
     this.removeAssistantPlaceholder();
     const wrap = this.container.createDiv({ cls: 'copsidian-msg assistant' });
-    wrap.createDiv({ cls: 'copsidian-error', text });
+    const errorEl = wrap.createDiv({ cls: 'copsidian-error' });
+    errorEl.createSpan({ cls: 'copsidian-error-text', text });
+
+    if (actionLabel && actionCallback) {
+      const btn = errorEl.createEl('button', {
+        cls: 'copsidian-error-action',
+        text: actionLabel,
+      });
+      btn.onclick = async () => {
+        btn.disabled = true;
+        btn.textContent = '...';
+        try {
+          await actionCallback();
+        } finally {
+          btn.disabled = false;
+          btn.textContent = actionLabel;
+        }
+      };
+    }
+
     this.scrollToBottom();
   }
 

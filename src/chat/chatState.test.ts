@@ -36,7 +36,6 @@ describe('ChatState', () => {
       title: 'test',
       kind: 'read',
       status: 'pending',
-      parentEl: null,
     });
 
     state.resetStreamingState();
@@ -53,7 +52,6 @@ describe('ChatState', () => {
     state.usage = { totalTokens: 10, inputTokens: 5, outputTokens: 5 };
     state.currentModelId = 'gpt-4';
     state.lastError = 'oops';
-    state.toolCallEls.set('tc-1', { tagName: 'DIV' } as unknown as HTMLDivElement);
 
     state.clear();
 
@@ -61,8 +59,6 @@ describe('ChatState', () => {
     expect(state.usage).toBeNull();
     expect(state.currentModelId).toBeNull();
     expect(state.lastError).toBeNull();
-    expect(state.toolCallEls.size).toBe(0);
-    expect(state.planEl).toBeNull();
   });
 
   it('should clear streaming state on clear()', () => {

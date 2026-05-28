@@ -24,7 +24,7 @@ import { AcpJsonRpcTransport } from './AcpJsonRpcTransport';
 import { SessionUpdateNormalizer } from './sessionUpdateNormalizer';
 import type { NormalizedUpdate } from '../types';
 
-export const CLIENT_VERSION = '0.0.28';
+export const CLIENT_VERSION = '0.0.29';
 
 export interface AcpSessionMeta {
   availableCommands: AvailableCommand[];
@@ -193,6 +193,7 @@ export class AcpClient implements OpencodeClient {
   private transport: AcpJsonRpcTransport | null = null;
   private agentCapabilities: AgentCapabilities | null = null;
   private activeStreamSessionId: string | null = null;
+  private activeAbortController: AbortController | null = null;
   private chunkHandler: ((update: NormalizedUpdate) => void) | null = null;
   private normalizer = new SessionUpdateNormalizer();
   private sessionId_: string | null = null;
@@ -350,11 +351,15 @@ export class AcpClient implements OpencodeClient {
     this.normalizer.reset();
     this.activeStreamSessionId = id;
     this.chunkHandler = onChunk;
-    return (this.requestWithFallback('prompt', { sessionId: id, prompt: parts }) as Promise<AcpResponse>)
+    this.activeAbortController = new AbortController();
+    const signal = this.activeAbortController.signal;
+
+    return (this.requestWithFallback('prompt', { sessionId: id, prompt: parts }, undefined, signal) as Promise<AcpResponse>)
       .finally(() => {
         if (this.activeStreamSessionId === id) {
           this.activeStreamSessionId = null;
           this.chunkHandler = null;
+          this.activeAbortController = null;
         }
       });
   }
@@ -363,6 +368,10 @@ export class AcpClient implements OpencodeClient {
     if (this.activeStreamSessionId === id) {
       this.activeStreamSessionId = null;
       this.chunkHandler = null;
+      if (this.activeAbortController) {
+        this.activeAbortController.abort();
+        this.activeAbortController = null;
+      }
     }
     return this.requestWithFallback('cancel', { sessionId: id }).then(() => {}).catch(() => {});
   }
@@ -394,6 +403,13 @@ export class AcpClient implements OpencodeClient {
   }
 
   getCurrentSessionId(): string | undefined { return this.sessionId_ ?? undefined; }
+
+  abort(): void {
+    if (this.activeAbortController) {
+      this.activeAbortController.abort();
+      this.activeAbortController = null;
+    }
+  }
 
   setClientHandlers(handlers: import('./index').ClientHandlers): void {
     this.onClose = handlers.onClose ?? undefined;
@@ -496,12 +512,12 @@ export class AcpClient implements OpencodeClient {
     return this.transport.request(method, params);
   }
 
-  private async requestWithFallback(logicalMethod: AcpLogicalMethod, params?: Record<string, unknown>, timeoutMs?: number): Promise<unknown> {
+  private async requestWithFallback(logicalMethod: AcpLogicalMethod, params?: Record<string, unknown>, timeoutMs?: number, signal?: AbortSignal): Promise<unknown> {
     if (!this.transport) throw new Error(t().acp.stdinNotWritable);
 
     const cachedMethod = this.methodCache.get(logicalMethod);
     if (cachedMethod) {
-      return this.transport.request(cachedMethod, params, timeoutMs);
+      return this.transport.request(cachedMethod, params, timeoutMs, signal);
     }
 
     const candidates = getAcpMethodCandidates(logicalMethod);
@@ -509,7 +525,7 @@ export class AcpClient implements OpencodeClient {
 
     for (const candidate of candidates) {
       try {
-        const result = await this.transport.request(candidate, params, timeoutMs);
+        const result = await this.transport.request(candidate, params, timeoutMs, signal);
         this.methodCache.set(logicalMethod, candidate);
         return result;
       } catch (err) {

@@ -356,7 +356,7 @@ describe('AcpClient server request handling', () => {
   });
 
   it('uses the current release version for ACP clientInfo', () => {
-    expect(CLIENT_VERSION).toBe('0.0.28');
+    expect(CLIENT_VERSION).toBe('0.0.29');
   });
 });
 
@@ -416,8 +416,8 @@ describe('requestWithFallback', () => {
     const result = await Reflect.get(client, 'requestWithFallback').call(client, 'newSession', { cwd: '/test' });
 
     expect(transport.request).toHaveBeenCalledTimes(2);
-    expect(transport.request).toHaveBeenNthCalledWith(1, 'session/new', { cwd: '/test' }, undefined);
-    expect(transport.request).toHaveBeenNthCalledWith(2, 'newSession', { cwd: '/test' }, undefined);
+    expect(transport.request).toHaveBeenNthCalledWith(1, 'session/new', { cwd: '/test' }, undefined, undefined);
+    expect(transport.request).toHaveBeenNthCalledWith(2, 'newSession', { cwd: '/test' }, undefined, undefined);
     expect(result).toEqual({ sessionId: 's2' });
   });
 
@@ -438,7 +438,7 @@ describe('requestWithFallback', () => {
     const result2 = await Reflect.get(client, 'requestWithFallback').call(client, 'newSession', { cwd: '/test2' });
 
     expect(transport.request).toHaveBeenCalledTimes(3);
-    expect(transport.request).toHaveBeenNthCalledWith(3, 'newSession', { cwd: '/test2' }, undefined);
+    expect(transport.request).toHaveBeenNthCalledWith(3, 'newSession', { cwd: '/test2' }, undefined, undefined);
     expect(result2).toEqual({ sessionId: 's3' });
   });
 

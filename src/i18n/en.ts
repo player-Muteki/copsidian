@@ -55,6 +55,8 @@ const en = {
 
   error: {
     compact: 'Compact failed',
+    timeout: 'Request timed out',
+    processExit: 'OpenCode process exited',
   },
 
   message: {

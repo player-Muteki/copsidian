@@ -30,3 +30,10 @@ export class AcpProcessExitError extends AcpTransportError {
     this.name = 'AcpProcessExitError';
   }
 }
+
+export class AcpAbortError extends AcpTransportError {
+  constructor(public readonly method: string) {
+    super(`ACP request '${method}' was aborted`);
+    this.name = 'AcpAbortError';
+  }
+}

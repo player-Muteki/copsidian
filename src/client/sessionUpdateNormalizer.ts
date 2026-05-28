@@ -38,7 +38,7 @@ export class SessionUpdateNormalizer {
           toolCallId: raw.toolCallId,
           title: raw.title,
           toolKind: raw.kind ?? 'other',
-          status: (raw.status as any) ?? 'pending',
+          status: (raw.status as 'pending' | 'in_progress' | 'completed' | 'failed') ?? 'pending',
           rawInput: raw.rawInput,
           locations: raw.locations,
           contents: [],

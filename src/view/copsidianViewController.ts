@@ -20,6 +20,7 @@ import type { WelcomeView } from './welcomeView';
 import type { PermissionBanner } from './permissionBanner';
 import type { InlineEditPanel } from './inlineEditPanel';
 import { ContextInjection as ContextInjectionClass } from '../context/injection';
+import { AcpTimeoutError, AcpProcessExitError, AcpAbortError } from '../client/AcpErrors';
 
 export interface ControllerCallbacks {
 	onShowWelcome(connected: boolean): void;
@@ -369,7 +370,26 @@ export class CopsidianViewController {
 			}
 		} catch (e: unknown) {
 			if (this.state.sessionId === sessionId) {
-				this.deps.renderer.addError(e instanceof Error ? e.message : String(e));
+				if (e instanceof AcpAbortError) {
+					// User cancelled, don't show error
+				} else if (e instanceof AcpTimeoutError) {
+					this.deps.renderer.addError(
+						t().error.timeout,
+						'retry',
+						() => this.send(text, refs)
+					);
+				} else if (e instanceof AcpProcessExitError) {
+					this.deps.renderer.addError(
+						t().error.processExit,
+						'restart',
+						async () => {
+							await this.reconnect();
+							await this.send(text, refs);
+						}
+					);
+				} else {
+					this.deps.renderer.addError(e instanceof Error ? e.message : String(e));
+				}
 			}
 		} finally {
 			this.deps.renderer.removeAssistantPlaceholder();
@@ -430,6 +450,7 @@ export class CopsidianViewController {
 		this.deps.input.setStreaming(false);
 		this.deps.toolbar.setSending(false);
 		try {
+			c.abort();
 			await c.cancel(this.state.sessionId);
 		} catch (e) {
 			console.error('[copsidian] cancel:', e);

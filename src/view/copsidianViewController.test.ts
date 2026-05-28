@@ -60,6 +60,7 @@ function createMockClient(overrides: Record<string, unknown> = {}) {
 		sendMessage: vi.fn().mockResolvedValue({ stopReason: 'end_turn', usage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 } }),
 		cancel: vi.fn().mockResolvedValue(undefined),
 		compact: vi.fn().mockResolvedValue(undefined),
+		abort: vi.fn(),
 		forkSession: vi.fn().mockResolvedValue('forked-session'),
 		resumeSession: vi.fn().mockResolvedValue(undefined),
 		getSessionSnapshot: vi.fn(() => ({

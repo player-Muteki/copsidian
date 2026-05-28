@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.0.29 - 2026-05-28
+
+### Added
+- Add `AbortSignal` support to `AcpJsonRpcTransport.request()` for request-level cancellation.
+- Add `AcpAbortError` error type for aborted requests.
+- Add `abort()` method to `AcpClient` and `AgentRuntime` for external cancellation.
+- Add error classification UI with retry/restart buttons for timeout and process exit errors.
+- Add `addError()` action parameter to `ChatRenderer` for inline error actions.
+
+### Changed
+- `AcpClient.sendMessage()` now uses `AbortController` for cancellation.
+- `stopGeneration()` calls `abort()` to immediately cancel in-flight JSON-RPC requests.
+- Removed DOM references from `ChatState` (`currentTextEl`, `ThinkingState.el`, `pendingTools[].parentEl`, `toolCallEls`, `planEl`).
+- Error messages now show contextual action buttons (retry for timeout, restart for process exit).
+
+### Tested
+- Updated tests for `ChatState`, `AcpClient`, and `CopsidianViewController` to reflect new abort behavior.
+
 ## 0.0.28 - 2026-05-26
 
 ### Changed

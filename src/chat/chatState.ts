@@ -5,12 +5,10 @@ export interface PendingToolCall {
 	title: string;
 	kind: string;
 	status: string;
-	parentEl: HTMLElement | null;
 }
 
 export interface ThinkingState {
 	content: string;
-	el: HTMLDivElement | null;
 	collapsed: boolean;
 }
 
@@ -33,12 +31,9 @@ export class ChatState {
 	// Streaming
 	isStreaming = false;
 	currentMessageId: string | null = null;
-	currentTextEl: HTMLDivElement | null = null;
 	currentTextContent = '';
 	currentThinking: ThinkingState | null = null;
 	pendingTools = new Map<string, PendingToolCall>();
-	toolCallEls = new Map<string, HTMLDivElement>();
-	planEl: HTMLDivElement | null = null;
 
 	// Usage
 	usage: UsageInfo | null = null;
@@ -65,7 +60,6 @@ export class ChatState {
 	}
 
 	resetStreamingState(): void {
-		this.currentTextEl = null;
 		this.currentTextContent = '';
 		this.currentThinking = null;
 		this.pendingTools.clear();
@@ -85,7 +79,5 @@ export class ChatState {
 		this.lastError = null;
 		this.needsAttention = false;
 		this.resetStreamingState();
-		this.toolCallEls.clear();
-		this.planEl = null;
 	}
 }
