@@ -291,6 +291,17 @@ const en = {
       enabled: 'Enabled — agent can read vault files',
       disabled: 'Disabled — no file system access',
     },
+    terminalCapability: {
+      heading: 'Terminal Access',
+      mode: 'Terminal Capability Mode',
+      modeDesc: 'Allow OpenCode agent to execute terminal commands',
+      enabled: 'Enabled — agent can run commands',
+      disabled: 'Disabled — no terminal access',
+      timeout: 'Command Timeout (ms)',
+      timeoutDesc: 'Maximum time in milliseconds before a command is terminated (default 30000)',
+      maxOutput: 'Max Output Size (bytes)',
+      maxOutputDesc: 'Maximum output buffer size in bytes (default 100000)',
+    },
   },
 };
 

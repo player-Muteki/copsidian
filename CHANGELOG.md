@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.0.31 - 2026-05-28
+
+### Added
+- Add `TerminalManager` class for terminal process lifecycle management (create, output, kill, release, waitForExit).
+- Register 5 terminal handlers: `terminal/create`, `terminal/output`, `terminal/kill`, `terminal/release`, `terminal/wait_for_exit`.
+- Declare `clientCapabilities.terminal = true` in ACP initialize request.
+- Add `TerminalCapabilityMode` setting (enabled/disabled) to control terminal access.
+- Add terminal timeout setting (default 30000ms) and max output buffer size setting (default 100000 bytes).
+- Add `setTerminalCapabilityMode()` method to `AcpClient` and `AgentRuntime`.
+- Add unit tests for `TerminalManager` lifecycle operations.
+
+### Security
+- Terminal commands run in vault directory by default.
+- Output buffer limited to prevent OOM.
+- Process timeout prevents hanging commands.
+
 ## 0.0.30 - 2026-05-28
 
 ### Added

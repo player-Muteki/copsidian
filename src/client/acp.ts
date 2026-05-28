@@ -16,6 +16,8 @@ import type {
 	McpServerConfig,
 	AgentCapabilities,
 	FsCapabilityMode,
+	TerminalCapabilityMode,
+	TerminalCreateParams,
 } from '../types';
 import type { OpencodeClient } from './index';
 import type { SessionMeta } from '../types';
@@ -25,8 +27,9 @@ import { AcpJsonRpcTransport } from './AcpJsonRpcTransport';
 import { SessionUpdateNormalizer } from './sessionUpdateNormalizer';
 import type { NormalizedUpdate } from '../types';
 import { FsDelegate } from './fsDelegate';
+import { TerminalManager } from './terminalManager';
 
-export const CLIENT_VERSION = '0.0.30';
+export const CLIENT_VERSION = '0.0.31';
 
 export interface AcpSessionMeta {
   availableCommands: AvailableCommand[];
@@ -203,6 +206,8 @@ export class AcpClient implements OpencodeClient {
 	private cwd?: string;
 	private fsDelegate: FsDelegate | null = null;
 	private fsCapabilityMode: FsCapabilityMode = 'enabled';
+	private terminalManager: TerminalManager | null = null;
+	private terminalCapabilityMode: TerminalCapabilityMode = 'enabled';
 	private availableCommands: AvailableCommand[] = [{ name: 'compact', description: 'compact the session' }];
 	private availableModels: ModelOption[] = [];
 	private availableModes: ModeOption[] = [];
@@ -265,6 +270,12 @@ export class AcpClient implements OpencodeClient {
 				maxBytes: 8000, // Will be updated when settings are applied
 			});
 
+			// Initialize TerminalManager
+			this.terminalManager = new TerminalManager({
+				timeoutMs: 30000, // Will be updated when settings are applied
+				maxOutputBytes: 100000, // Will be updated when settings are applied
+			});
+
 			transport.onNotification('session/update', (params) => {
 				const p = params as Record<string, unknown> | undefined;
 				const update = this.parseUpdate(p?.update as Record<string, unknown> | undefined);
@@ -286,11 +297,31 @@ export class AcpClient implements OpencodeClient {
 				return this.handleReadTextFile(params as Record<string, unknown>);
 			});
 
+			// Register terminal handlers
+			transport.onRequest('terminal/create', (params) => {
+				return this.handleTerminalCreate(params as Record<string, unknown>);
+			});
+			transport.onRequest('terminal/output', (params) => {
+				return this.handleTerminalOutput(params as Record<string, unknown>);
+			});
+			transport.onRequest('terminal/kill', (params) => {
+				return this.handleTerminalKill(params as Record<string, unknown>);
+			});
+			transport.onRequest('terminal/release', (params) => {
+				return this.handleTerminalRelease(params as Record<string, unknown>);
+			});
+			transport.onRequest('terminal/wait_for_exit', (params) => {
+				return this.handleTerminalWaitForExit(params as Record<string, unknown>);
+			});
+
 			subprocess.onClose((error) => this.handleSubprocessClose(subprocess, error));
 
 			const clientCapabilities: Record<string, unknown> = {};
 			if (this.fsCapabilityMode === 'enabled') {
 				clientCapabilities.fs = { readTextFile: true, writeTextFile: false };
+			}
+			if (this.terminalCapabilityMode === 'enabled') {
+				clientCapabilities.terminal = true;
 			}
 
 			const response = await this.request('initialize', {
@@ -549,6 +580,117 @@ export class AcpClient implements OpencodeClient {
 				maxBytes,
 			});
 		}
+	}
+
+	setTerminalCapabilityMode(mode: TerminalCapabilityMode, timeoutMs?: number, maxOutputBytes?: number): void {
+		this.terminalCapabilityMode = mode;
+		if (this.terminalManager) {
+			this.terminalManager = new TerminalManager({
+				timeoutMs: timeoutMs ?? 30000,
+				maxOutputBytes: maxOutputBytes ?? 100000,
+			});
+		}
+	}
+
+	private handleTerminalCreate(params: Record<string, unknown>): Promise<unknown> {
+		return new Promise((resolve) => {
+			if (this.terminalCapabilityMode !== 'enabled' || !this.terminalManager) {
+				resolve({ error: 'Terminal access is disabled' });
+				return;
+			}
+
+			const command = params.command as string;
+			if (!command) {
+				resolve({ error: 'Missing required parameter: command' });
+				return;
+			}
+
+			const createParams: TerminalCreateParams = {
+				command,
+				args: params.args as string[] | undefined,
+				cwd: params.cwd as string | undefined,
+				env: params.env as Record<string, string> | undefined,
+			};
+
+			const instance = this.terminalManager.create(createParams, this.cwd ?? process.cwd());
+			resolve({
+				terminalId: instance.terminalId,
+				pid: instance.pid,
+			});
+		});
+	}
+
+	private handleTerminalOutput(params: Record<string, unknown>): Promise<unknown> {
+		return new Promise((resolve) => {
+			if (!this.terminalManager) {
+				resolve({ error: 'Terminal manager not initialized' });
+				return;
+			}
+
+			const terminalId = params.terminalId as string;
+			if (!terminalId) {
+				resolve({ error: 'Missing required parameter: terminalId' });
+				return;
+			}
+
+			const result = this.terminalManager.output(terminalId);
+			resolve(result);
+		});
+	}
+
+	private handleTerminalKill(params: Record<string, unknown>): Promise<unknown> {
+		return new Promise((resolve) => {
+			if (!this.terminalManager) {
+				resolve({ error: 'Terminal manager not initialized' });
+				return;
+			}
+
+			const terminalId = params.terminalId as string;
+			if (!terminalId) {
+				resolve({ error: 'Missing required parameter: terminalId' });
+				return;
+			}
+
+			const success = this.terminalManager.kill(terminalId);
+			resolve({ success });
+		});
+	}
+
+	private handleTerminalRelease(params: Record<string, unknown>): Promise<unknown> {
+		return new Promise((resolve) => {
+			if (!this.terminalManager) {
+				resolve({ error: 'Terminal manager not initialized' });
+				return;
+			}
+
+			const terminalId = params.terminalId as string;
+			if (!terminalId) {
+				resolve({ error: 'Missing required parameter: terminalId' });
+				return;
+			}
+
+			const success = this.terminalManager.release(terminalId);
+			resolve({ success });
+		});
+	}
+
+	private handleTerminalWaitForExit(params: Record<string, unknown>): Promise<unknown> {
+		return new Promise((resolve) => {
+			if (!this.terminalManager) {
+				resolve({ error: 'Terminal manager not initialized' });
+				return;
+			}
+
+			const terminalId = params.terminalId as string;
+			if (!terminalId) {
+				resolve({ error: 'Missing required parameter: terminalId' });
+				return;
+			}
+
+			this.terminalManager.waitForExit(terminalId).then((result) => {
+				resolve(result || { error: 'Terminal not found' });
+			});
+		});
 	}
 
   private parseUpdate(u: Record<string, unknown> | undefined | null): SessionUpdate | null {

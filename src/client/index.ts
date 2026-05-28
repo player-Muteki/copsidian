@@ -13,6 +13,7 @@ import type {
 	McpServerConfig,
 	AgentCapabilities,
 	FsCapabilityMode,
+	TerminalCapabilityMode,
 } from '../types';
 
 export interface ClientHandlers {
@@ -54,4 +55,5 @@ export interface OpencodeClient {
 	getCurrentSessionId(): SessionId | undefined;
 	setClientHandlers(handlers: ClientHandlers): void;
 	setFsCapabilityMode(mode: FsCapabilityMode, maxBytes?: number): void;
+	setTerminalCapabilityMode(mode: TerminalCapabilityMode, timeoutMs?: number, maxOutputBytes?: number): void;
 }

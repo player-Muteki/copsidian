@@ -3,7 +3,7 @@ import { existsSync } from 'fs';
 import { delimiter, isAbsolute } from 'path';
 import CopsidianPlugin from './main';
 import { VIEW_TYPE } from './types';
-import type { AgentCapabilities, AvailableCommand, CustomAgentDefinition, CustomSkillDefinition, McpServerConfig, ModeOption, ModelOption, PermissionLevel, SyncRule, FsCapabilityMode } from './types';
+import type { AgentCapabilities, AvailableCommand, CustomAgentDefinition, CustomSkillDefinition, McpServerConfig, ModeOption, ModelOption, PermissionLevel, SyncRule, FsCapabilityMode, TerminalCapabilityMode } from './types';
 import type { OpencodeClient } from './client';
 import { setLocale, t as locale } from './i18n/index';
 import { CLIENT_VERSION } from './client/acp';
@@ -369,6 +369,52 @@ export class CopsidianSettingsTab extends PluginSettingTab {
           const client = this.plugin.getClient();
           if (client) {
             client.setFsCapabilityMode(v as FsCapabilityMode, s.maxNoteSize);
+          }
+        }));
+
+    // ── Terminal Capability ──
+    new Setting(containerEl).setName(labels.terminalCapability.heading).setHeading();
+
+    new Setting(containerEl)
+      .setName(labels.terminalCapability.mode)
+      .setDesc(labels.terminalCapability.modeDesc)
+      .addDropdown((d) => d.addOptions({
+        enabled: labels.terminalCapability.enabled,
+        disabled: labels.terminalCapability.disabled,
+      })
+        .setValue(s.terminalCapability ?? 'enabled')
+        .onChange(async (v) => {
+          s.terminalCapability = v as TerminalCapabilityMode;
+          await this.save();
+          const client = this.plugin.getClient();
+          if (client) {
+            client.setTerminalCapabilityMode(v as TerminalCapabilityMode, s.terminalTimeoutMs, s.terminalMaxOutputBytes);
+          }
+        }));
+
+    new Setting(containerEl)
+      .setName(labels.terminalCapability.timeout)
+      .setDesc(labels.terminalCapability.timeoutDesc)
+      .addText((t) => t.setValue(String(s.terminalTimeoutMs ?? 30000))
+        .setPlaceholder('30000')
+        .onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (!isNaN(n) && n > 0) {
+            s.terminalTimeoutMs = n;
+            await this.save();
+          }
+        }));
+
+    new Setting(containerEl)
+      .setName(labels.terminalCapability.maxOutput)
+      .setDesc(labels.terminalCapability.maxOutputDesc)
+      .addText((t) => t.setValue(String(s.terminalMaxOutputBytes ?? 100000))
+        .setPlaceholder('100000')
+        .onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (!isNaN(n) && n > 0) {
+            s.terminalMaxOutputBytes = n;
+            await this.save();
           }
         }));
   }

@@ -10,6 +10,7 @@ import type {
 	SessionSnapshot,
 	McpServerConfig,
 	FsCapabilityMode,
+	TerminalCapabilityMode,
 } from '../types';
 import type { OpencodeClient, ClientHandlers } from './index';
 import type { AgentCapabilities } from '../types';
@@ -106,4 +107,7 @@ export class AgentRuntime implements OpencodeClient {
   getSessionSnapshot(): SessionSnapshot { return this.acp.getSessionSnapshot(); }
 	getCurrentSessionId(): string | undefined { return this.acp.getCurrentSessionId(); }
 	setFsCapabilityMode(mode: FsCapabilityMode, maxBytes?: number): void { this.acp.setFsCapabilityMode(mode, maxBytes); }
+	setTerminalCapabilityMode(mode: TerminalCapabilityMode, timeoutMs?: number, maxOutputBytes?: number): void {
+		this.acp.setTerminalCapabilityMode(mode, timeoutMs, maxOutputBytes);
+	}
 }

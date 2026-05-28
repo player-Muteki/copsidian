@@ -143,6 +143,7 @@ export interface AcpResponse {
 
 export type PermissionLevel = 'yolo' | 'plan' | 'safe';
 export type FsCapabilityMode = 'enabled' | 'disabled';
+export type TerminalCapabilityMode = 'enabled' | 'disabled';
 
 export interface ContextRef {
   id: string;
@@ -181,14 +182,40 @@ export interface CustomSkillDefinition {
 }
 
 export interface CustomAgentDefinition {
-  id: string;
-  enabled: boolean;
-  name: string;
-  description: string;
-  instructions: string;
-  skillIds: string[];
-  modeId?: string;
-  modelId?: string;
+	id: string;
+	enabled: boolean;
+	name: string;
+	description: string;
+	instructions: string;
+	skillIds: string[];
+	modeId?: string;
+	modelId?: string;
+}
+
+export interface TerminalCreateParams {
+	command: string;
+	args?: string[];
+	cwd?: string;
+	env?: Record<string, string>;
+}
+
+export interface TerminalOutputResult {
+	output: string;
+	exitStatus?: { exitCode: number | null; signal: string | null };
+	error?: string;
+}
+
+export interface TerminalInstance {
+	terminalId: string;
+	command: string;
+	args: string[];
+	cwd: string;
+	pid: number | null;
+	status: 'running' | 'exited' | 'killed';
+	output: string;
+	exitCode: number | null;
+	signal: string | null;
+	createdAt: number;
 }
 
 export interface SerializedMessage {
@@ -235,6 +262,9 @@ export interface CopsidianSettings {
 	maxSessionMessages?: number;
 	sessionRetentionDays?: number;
 	fsCapability?: FsCapabilityMode;
+	terminalCapability?: TerminalCapabilityMode;
+	terminalTimeoutMs?: number;
+	terminalMaxOutputBytes?: number;
 }
 
 export const DEFAULT_SETTINGS: CopsidianSettings = {
@@ -261,6 +291,9 @@ export const DEFAULT_SETTINGS: CopsidianSettings = {
 	maxSessionMessages: 200,
 	sessionRetentionDays: 30,
 	fsCapability: 'enabled',
+	terminalCapability: 'enabled',
+	terminalTimeoutMs: 30000,
+	terminalMaxOutputBytes: 100000,
 };
 
 export const VIEW_TYPE = 'copsidian-view';

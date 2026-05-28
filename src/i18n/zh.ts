@@ -293,6 +293,17 @@ const zh: Locale = {
       enabled: '启用 — Agent 可以读取 Vault 文件',
       disabled: '禁用 — 无文件系统访问权限',
     },
+    terminalCapability: {
+      heading: '终端访问',
+      mode: '终端能力模式',
+      modeDesc: '允许 OpenCode Agent 执行终端命令',
+      enabled: '启用 — Agent 可以运行命令',
+      disabled: '禁用 — 无终端访问权限',
+      timeout: '命令超时（毫秒）',
+      timeoutDesc: '命令终止前的最大等待时间（默认 30000）',
+      maxOutput: '最大输出大小（字节）',
+      maxOutputDesc: '输出缓冲区的最大字节数（默认 100000）',
+    },
   },
 };
 
