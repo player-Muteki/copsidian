@@ -307,6 +307,10 @@ const en = {
       maxOutput: 'Max Output Size (bytes)',
       maxOutputDesc: 'Maximum output buffer size in bytes (default 100000)',
     },
+    idleTimeout: {
+      name: 'Idle Timeout (ms)',
+      desc: 'Maximum time to wait for agent response before timeout (default 300000, 0 to disable)',
+    },
   },
 };
 

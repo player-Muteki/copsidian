@@ -29,7 +29,7 @@ import type { NormalizedUpdate } from '../types';
 import { FsDelegate } from './fsDelegate';
 import { TerminalManager } from './terminalManager';
 
-export const CLIENT_VERSION = '0.0.35';
+export const CLIENT_VERSION = '0.0.36';
 
 export interface AcpSessionMeta {
   availableCommands: AvailableCommand[];
@@ -777,6 +777,13 @@ export class AcpClient implements OpencodeClient {
     this.transport = null;
     this.subprocess = null;
     this.connected = false;
+
+    // Clear session state so reconnect reloads models/modes
+    this.sessionId_ = null;
+    this.activeStreamSessionId = null;
+    this.chunkHandler = null;
+    this.activeAbortController = null;
+    this.normalizer.reset();
 
     transport?.dispose(error);
     if (shutdownSubprocess) {

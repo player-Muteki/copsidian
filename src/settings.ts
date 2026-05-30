@@ -418,6 +418,25 @@ export class CopsidianSettingsTab extends PluginSettingTab {
             await this.save();
           }
         }));
+
+    // Idle timeout
+    const idleLabels = locale().settings.idleTimeout;
+    new Setting(containerEl)
+      .setName(idleLabels.name)
+      .setDesc(idleLabels.desc)
+      .addText((t) => t.setValue(String(s.idleTimeoutMs ?? 300000))
+        .setPlaceholder('300000')
+        .onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (!isNaN(n) && n >= 0) {
+            s.idleTimeoutMs = n;
+            await this.save();
+            const client = this.plugin.getClient();
+            if (client) {
+              client.idleTimeoutMs = n || 300000;
+            }
+          }
+        }));
   }
 
   private addSyncRuleBlock(containerEl: HTMLElement, rule: SyncRule): void {

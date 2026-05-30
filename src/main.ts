@@ -211,6 +211,7 @@ export default class CopsidianPlugin extends Plugin {
       await acp.connect();
       this.client = new AgentRuntime(acp);
       this.client.permissionMode = this.settings.permissionMode;
+      this.client.idleTimeoutMs = this.settings.idleTimeoutMs ?? 300000;
       this._clientReady = true;
       this.resolveClientWaiters(true);
       new Notice(t().notice.connected);

@@ -309,6 +309,10 @@ const zh: Locale = {
       maxOutput: '最大输出大小（字节）',
       maxOutputDesc: '输出缓冲区的最大字节数（默认 100000）',
     },
+    idleTimeout: {
+      name: '空闲超时（毫秒）',
+      desc: '等待 Agent 响应的最大时间（默认 300000，设为 0 禁用）',
+    },
   },
 };
 

@@ -20,6 +20,7 @@ import { AcpTimeoutError } from './AcpErrors';
 
 export class AgentRuntime implements OpencodeClient {
   permissionMode = 'safe';
+  idleTimeoutMs = 5 * 60 * 1000; // 5 minutes default
 
   constructor(private acp: AcpClient) {}
 
@@ -40,7 +41,7 @@ export class AgentRuntime implements OpencodeClient {
   }
 
   async sendMessage(id: string, parts: PromptPart[], handler: (u: NormalizedUpdate) => void): Promise<AcpResponse> {
-    const timeoutMs = 5 * 60 * 1000; // 5 minutes idle timeout
+    const timeoutMs = this.idleTimeoutMs;
     return new Promise<AcpResponse>((resolve, reject) => {
       let timeout: NodeJS.Timeout;
 

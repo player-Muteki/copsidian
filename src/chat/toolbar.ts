@@ -10,11 +10,16 @@ export interface ToolbarCallbacks {
 
 export class InputToolbar {
   private agentSelect: HTMLSelectElement;
-  private modelSelect: HTMLSelectElement;
   private effortSelect: HTMLSelectElement;
   private sendBtn: HTMLButtonElement;
   private sendingEl: HTMLSpanElement;
   private sending = false;
+
+  // Custom model selector
+  private modelSelectorEl: HTMLDivElement;
+  private modelBtnEl: HTMLDivElement;
+  private modelLabelEl: HTMLSpanElement;
+  private modelDropdownEl: HTMLDivElement;
   private modelOptions: Array<{ value: string; label: string }> = [];
   private currentModel: string | undefined;
 
@@ -22,9 +27,12 @@ export class InputToolbar {
     container.addClass('copsidian-toolbar');
     onLocaleChange(() => this.refreshLocale());
 
-    this.modelSelect = container.createEl('select', { cls: 'copsidian-dropdown tb-select tb-model' });
-    this.modelSelect.title = t().toolbar.modelTitle;
-    this.modelSelect.onchange = () => this.callbacks.onModelChange?.(this.modelSelect.value);
+    // Custom model selector (hover dropdown)
+    this.modelSelectorEl = container.createDiv({ cls: 'copsidian-model-selector' });
+    this.modelBtnEl = this.modelSelectorEl.createDiv({ cls: 'copsidian-model-btn' });
+    this.modelLabelEl = this.modelBtnEl.createSpan({ cls: 'copsidian-model-label' });
+    this.modelLabelEl.setText(t().toolbar.noModels);
+    this.modelDropdownEl = this.modelSelectorEl.createDiv({ cls: 'copsidian-model-dropdown' });
 
     this.agentSelect = container.createEl('select', { cls: 'copsidian-dropdown tb-select tb-agent' });
     this.agentSelect.title = t().toolbar.agentTitle;
@@ -62,12 +70,54 @@ export class InputToolbar {
   updateModels(options: Array<{ value: string; label: string }>, current?: string): void {
     this.modelOptions = [...options];
     this.currentModel = current;
-    this.modelSelect.empty();
+    this.renderModelDropdown();
+
+    // Update button label
     if (options.length === 0) {
-      this.modelSelect.createEl('option', { text: t().toolbar.noModels, value: '' });
+      this.modelLabelEl.setText(t().toolbar.noModels);
     } else {
-      for (const o of options) this.modelSelect.createEl('option', { text: o.label, value: o.value });
-      if (current) this.modelSelect.value = current;
+      const selected = options.find(o => o.value === current);
+      this.modelLabelEl.setText(selected?.label ?? options[0].label);
+    }
+  }
+
+  private renderModelDropdown(): void {
+    this.modelDropdownEl.empty();
+    const options = this.modelOptions;
+
+    if (options.length === 0) {
+      const emptyEl = this.modelDropdownEl.createDiv({ cls: 'copsidian-model-option empty' });
+      emptyEl.setText(t().toolbar.noModels);
+      return;
+    }
+
+    // Group by provider (split on first '/')
+    const groups = new Map<string, Array<{ value: string; label: string }>>();
+    for (const opt of options) {
+      const parts = opt.value.split('/');
+      const group = parts.length > 1 ? parts[0] : '';
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group)!.push(opt);
+    }
+
+    for (const [group, groupOptions] of groups) {
+      if (group && groups.size > 1) {
+        const separator = this.modelDropdownEl.createDiv({ cls: 'copsidian-model-group' });
+        separator.setText(group);
+      }
+      for (const opt of groupOptions) {
+        const optionEl = this.modelDropdownEl.createDiv({ cls: 'copsidian-model-option' });
+        if (opt.value === this.currentModel) {
+          optionEl.addClass('selected');
+        }
+        optionEl.setText(opt.label);
+        optionEl.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.callbacks.onModelChange?.(opt.value);
+          this.modelLabelEl.setText(opt.label);
+          this.renderModelDropdown();
+        });
+      }
     }
   }
 
@@ -86,10 +136,14 @@ export class InputToolbar {
   }
 
   refreshLocale(): void {
-    this.modelSelect.title = t().toolbar.modelTitle;
+    this.modelLabelEl.setText(
+      this.currentModel
+        ? (this.modelOptions.find(o => o.value === this.currentModel)?.label ?? t().toolbar.noModels)
+        : t().toolbar.noModels
+    );
     this.agentSelect.title = t().toolbar.agentTitle;
     this.effortSelect.title = t().toolbar.effortTitle;
-    this.updateModels(this.modelOptions, this.currentModel);
+    this.renderModelDropdown();
     this.updateEffort([
       { value: 'default', label: t().toolbar.effort.default },
       { value: 'low', label: t().toolbar.effort.low },

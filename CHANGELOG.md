@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.36 - 2026-05-30
+
+### Fixed
+- Fix model list not loading on initial connection - now syncs saved session before loading toolbar options.
+- Fix model list not loading after reconnect - clears session state on disconnect so reconnect forces reload.
+- Fix abort handler in `AcpJsonRpcTransport` to properly reject with `AcpAbortError`.
+
+### Changed
+- Model selector now uses custom hover dropdown instead of native `<select>`, with provider grouping.
+- Idle timeout is now configurable via Settings (default 300000ms, 0 to disable).
+- `disposeConnection()` now clears session state (sessionId, stream handler, normalizer).
+
 ## 0.0.35 - 2026-05-30
 
 ### Fixed

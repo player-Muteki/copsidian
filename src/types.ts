@@ -265,6 +265,7 @@ export interface CopsidianSettings {
 	terminalCapability?: TerminalCapabilityMode;
 	terminalTimeoutMs?: number;
 	terminalMaxOutputBytes?: number;
+	idleTimeoutMs?: number;
 }
 
 export const DEFAULT_SETTINGS: CopsidianSettings = {
@@ -294,6 +295,7 @@ export const DEFAULT_SETTINGS: CopsidianSettings = {
 	terminalCapability: 'enabled',
 	terminalTimeoutMs: 30000,
 	terminalMaxOutputBytes: 100000,
+	idleTimeoutMs: 300000,
 };
 
 export const VIEW_TYPE = 'copsidian-view';

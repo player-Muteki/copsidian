@@ -285,9 +285,115 @@
   border-color: var(--text-accent);
 }
 
-.copsidian-toolbar .tb-model { flex: 1; max-width: 50%; }
 .copsidian-toolbar .tb-agent { flex: 0 1 auto; }
 .copsidian-toolbar .tb-effort { flex: 0 1 auto; }
+
+/* Model selector (custom dropdown) */
+.copsidian-model-selector {
+  position: relative;
+  flex: 1;
+  max-width: 50%;
+}
+
+.copsidian-model-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  cursor: pointer;
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  transition: color 0.1s ease, border-color 0.1s ease;
+}
+
+.copsidian-model-btn:hover {
+  color: var(--text-normal);
+  border-color: var(--text-accent);
+}
+
+.copsidian-model-label {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.copsidian-model-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  width: max-content;
+  min-width: 100%;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 4px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+}
+
+.copsidian-model-selector:hover .copsidian-model-dropdown {
+  opacity: 1;
+  visibility: visible;
+}
+
+.copsidian-model-group {
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+}
+
+.copsidian-model-group:not(:first-child) {
+  margin-top: 4px;
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 6px;
+}
+
+.copsidian-model-option {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  border-radius: 3px;
+  transition: background 0.1s ease, color 0.1s ease;
+  white-space: nowrap;
+}
+
+.copsidian-model-option:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.copsidian-model-option.selected {
+  background: rgba(var(--interactive-accent-rgb), 0.15);
+  color: var(--text-accent);
+  font-weight: 500;
+}
+
+.copsidian-model-option.empty {
+  color: var(--text-faint);
+  cursor: default;
+  pointer-events: none;
+}
 
 .copsidian-toolbar .copsidian-toolbar-sending {
   width: 8px;

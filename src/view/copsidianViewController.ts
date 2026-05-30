@@ -101,7 +101,7 @@ export class CopsidianViewController {
 			this.bindClientHandlers();
 			this.callbacks.onHideReconnectBtn();
 			this.deps.welcomeView.updateStatus(true);
-			this.loadToolbarOptions();
+			await this.syncSavedSessionAndLoadToolbar();
 			return true;
 		}
 
@@ -115,8 +115,19 @@ export class CopsidianViewController {
 		this.bindClientHandlers();
 		this.callbacks.onHideReconnectBtn();
 		this.deps.welcomeView.updateStatus(true);
-		this.loadToolbarOptions();
+		await this.syncSavedSessionAndLoadToolbar();
 		return true;
+	}
+
+	private async syncSavedSessionAndLoadToolbar(): Promise<void> {
+		if (this.state.sessionId) {
+			try {
+				await this.syncRuntimeSession(this.state.sessionId);
+			} catch (e) {
+				console.error('[copsidian] session sync on connect:', e);
+			}
+		}
+		this.loadToolbarOptions();
 	}
 
 	bindClientHandlers(): void {
