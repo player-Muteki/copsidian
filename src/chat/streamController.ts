@@ -95,6 +95,8 @@ export class StreamController {
 		case 'usage': {
 				if (state.usage) {
 					if (ch.cost) state.usage.cost = ch.cost;
+					if (ch.size) state.usage.contextWindow = ch.size;
+					if (ch.used) state.usage.contextTokens = ch.used;
 				} else {
 					state.usage = {
 						totalTokens: ch.totalTokens ?? ch.used ?? 0,
@@ -102,6 +104,8 @@ export class StreamController {
 						outputTokens: ch.outputTokens ?? 0,
 						thoughtTokens: ch.thoughtTokens,
 						cost: ch.cost,
+						contextWindow: ch.size,
+						contextTokens: ch.used,
 					};
 				}
 				this.deps.onUsageUpdate?.();

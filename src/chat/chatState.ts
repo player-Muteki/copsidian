@@ -18,6 +18,8 @@ export interface UsageInfo {
 	outputTokens: number;
 	thoughtTokens?: number;
 	cost?: { amount: number; currency: string };
+	contextWindow?: number;
+	contextTokens?: number;
 }
 
 export class ChatState {

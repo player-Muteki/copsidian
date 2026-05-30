@@ -394,6 +394,8 @@ export class CopsidianViewController {
 					outputTokens: response.usage.outputTokens ?? 0,
 					thoughtTokens: response.usage.thoughtTokens,
 					cost: this.state.usage?.cost,
+					contextWindow: this.state.usage?.contextWindow,
+					contextTokens: this.state.usage?.contextTokens,
 				};
 				this.deps.toolbar.updateContextMeter(this.state.usage);
 			}

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.41 - 2026-05-30
+
+### Changed
+- Context meter redesigned as semicircle arc gauge — SVG arc fills from left to right, percentage text on right.
+- Effort selector now uses custom hover dropdown instead of native `<select>`, matching model selector style.
+- All toolbar elements now use consistent custom UI (no native form controls).
+
 ## 0.0.40 - 2026-05-30
 
 ### Fixed

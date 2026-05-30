@@ -6,6 +6,7 @@ export interface UsageInfo {
   outputTokens: number;
   thoughtTokens?: number;
   contextWindow?: number;
+  contextTokens?: number;
   percentage?: number;
 }
 
@@ -19,7 +20,6 @@ export interface ToolbarCallbacks {
 }
 
 export class InputToolbar {
-  private effortSelect: HTMLSelectElement;
   private sendBtn: HTMLButtonElement;
   private sendingEl: HTMLSpanElement;
   private sending = false;
@@ -37,18 +37,24 @@ export class InputToolbar {
   private modeOptions: Array<{ value: string; label: string }> = [];
   private currentMode: string | undefined;
 
+  // Custom effort selector
+  private effortSelectorEl: HTMLDivElement;
+  private effortBtnEl: HTMLDivElement;
+  private effortLabelEl: HTMLSpanElement;
+  private effortDropdownEl: HTMLDivElement;
+  private effortOptions: Array<{ value: string; label: string }> = [];
+  private currentEffort: string | undefined;
+
   // Permission toggle
   private permToggleEl: HTMLDivElement;
   private permLabelEl: HTMLSpanElement;
   private permSwitchEl: HTMLDivElement;
   private currentPermission: string = 'safe';
 
-  // Context meter
+  // Context arc meter
   private meterEl: HTMLDivElement;
-  private meterTrackEl: HTMLDivElement;
-  private meterFillEl: HTMLDivElement;
-  private meterGlowEl: HTMLDivElement;
-  private meterTextEl: HTMLSpanElement;
+  private meterArcFill: SVGCircleElement;
+  private meterPctEl: HTMLSpanElement;
 
   constructor(container: HTMLDivElement, private callbacks: ToolbarCallbacks) {
     container.addClass('copsidian-toolbar');
@@ -67,21 +73,40 @@ export class InputToolbar {
     // Mode segmented buttons
     this.modeGroupEl = topRow.createDiv({ cls: 'copsidian-mode-group' });
 
-    // ── Bottom row: effort + meter + permission + sending + send ──
+    // ── Bottom row: effort + flask + permission + sending + send ──
     const bottomRow = container.createDiv({ cls: 'copsidian-toolbar-row copsidian-toolbar-bottom' });
 
-    // Effort dropdown
-    this.effortSelect = bottomRow.createEl('select', { cls: 'copsidian-dropdown tb-select tb-effort' });
-    this.effortSelect.title = t().toolbar.effortTitle;
-    this.effortSelect.onchange = () => this.callbacks.onEffortChange?.(this.effortSelect.value);
+    // Custom effort selector (hover dropdown)
+    this.effortSelectorEl = bottomRow.createDiv({ cls: 'copsidian-effort-selector' });
+    this.effortBtnEl = this.effortSelectorEl.createDiv({ cls: 'copsidian-effort-btn' });
+    this.effortLabelEl = this.effortBtnEl.createSpan({ cls: 'copsidian-effort-label' });
+    this.effortLabelEl.setText('—');
+    this.effortDropdownEl = this.effortSelectorEl.createDiv({ cls: 'copsidian-effort-dropdown' });
 
-    // Context meter
-    this.meterEl = bottomRow.createDiv({ cls: 'copsidian-meter' });
-    this.meterTrackEl = this.meterEl.createDiv({ cls: 'copsidian-meter-track' });
-    this.meterFillEl = this.meterTrackEl.createDiv({ cls: 'copsidian-meter-fill' });
-    this.meterGlowEl = this.meterTrackEl.createDiv({ cls: 'copsidian-meter-glow' });
-    this.meterTextEl = this.meterEl.createSpan({ cls: 'copsidian-meter-text' });
-    this.meterTextEl.setText('—');
+    // Context arc meter (semicircle gauge)
+    this.meterEl = bottomRow.createDiv({ cls: 'copsidian-arc-meter' });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 40 24');
+    svg.setAttribute('class', 'copsidian-arc-svg');
+    const R = 18;
+    const C = 20;
+    const ARC_LEN = Math.PI * R;
+    // Background track
+    const track = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    track.setAttribute('d', `M ${C - R} ${C} A ${R} ${R} 0 0 1 ${C + R} ${C}`);
+    track.setAttribute('class', 'copsidian-arc-track');
+    svg.appendChild(track);
+    // Fill arc
+    this.meterArcFill = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    this.meterArcFill.setAttribute('cx', String(C));
+    this.meterArcFill.setAttribute('cy', String(C));
+    this.meterArcFill.setAttribute('r', String(R));
+    this.meterArcFill.setAttribute('class', 'copsidian-arc-fill');
+    this.meterArcFill.setAttribute('stroke-dasharray', `0 ${ARC_LEN}`);
+    svg.appendChild(this.meterArcFill);
+    this.meterEl.appendChild(svg);
+    this.meterPctEl = this.meterEl.createSpan({ cls: 'copsidian-arc-pct' });
+    this.meterPctEl.setText('—');
     this.meterEl.addClass('empty');
 
     // Permission toggle
@@ -190,42 +215,75 @@ export class InputToolbar {
     }
   }
 
-  // ── Effort ──
+  // ── Effort custom dropdown ──
 
   updateEffort(options: Array<{ value: string; label: string }>, current?: string): void {
-    this.effortSelect.empty();
-    for (const o of options) this.effortSelect.createEl('option', { text: o.label, value: o.value });
-    if (current) this.effortSelect.value = current;
+    this.effortOptions = [...options];
+    this.currentEffort = current;
+    this.renderEffortDropdown();
+
+    if (current) {
+      const selected = options.find(o => o.value === current);
+      this.effortLabelEl.setText(selected?.label ?? options[0]?.label ?? '—');
+    } else if (options.length > 0) {
+      this.effortLabelEl.setText(options[0].label);
+    }
   }
 
-  // ── Context meter ──
+  private renderEffortDropdown(): void {
+    this.effortDropdownEl.empty();
+    const options = this.effortOptions;
+
+    if (options.length === 0) {
+      const emptyEl = this.effortDropdownEl.createDiv({ cls: 'copsidian-effort-option empty' });
+      emptyEl.setText('—');
+      return;
+    }
+
+    for (const opt of options) {
+      const optionEl = this.effortDropdownEl.createDiv({ cls: 'copsidian-effort-option' });
+      if (opt.value === this.currentEffort) {
+        optionEl.addClass('selected');
+      }
+      optionEl.setText(opt.label);
+      optionEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.callbacks.onEffortChange?.(opt.value);
+        this.currentEffort = opt.value;
+        this.effortLabelEl.setText(opt.label);
+        this.renderEffortDropdown();
+      });
+    }
+  }
+
+  // ── Context arc meter ──
 
   updateContextMeter(usage: UsageInfo | null): void {
-    if (!usage || usage.totalTokens <= 0) {
+    const R = 18;
+    const ARC_LEN = Math.PI * R;
+
+    if (!usage || (!usage.contextTokens && usage.totalTokens <= 0)) {
       this.meterEl.addClass('empty');
       this.meterEl.removeClass('warning', 'critical');
-      this.meterTextEl.setText('—');
-      this.meterFillEl.style.width = '0%';
-      this.meterGlowEl.style.width = '0%';
+      this.meterPctEl.setText('—');
+      this.meterArcFill.setAttribute('stroke-dasharray', `0 ${ARC_LEN}`);
       this.meterEl.removeAttribute('data-tooltip');
       return;
     }
 
     this.meterEl.removeClass('empty');
 
-    // Calculate percentage
-    const contextWindow = usage.contextWindow ?? 200000;
-    const used = usage.inputTokens + (usage.thoughtTokens ?? 0) + (usage.outputTokens ?? 0);
+    // Use opencode's pre-calculated contextTokens if available, fallback to totalTokens
+    const used = usage.contextTokens ?? usage.totalTokens ?? 0;
+    const contextWindow = usage.contextWindow ?? 0;
     const pct = contextWindow > 0 ? Math.min(100, Math.round((used / contextWindow) * 100)) : 0;
 
-    // Update fill width
-    this.meterFillEl.style.width = `${pct}%`;
-    this.meterGlowEl.style.width = `${pct}%`;
+    // Update arc fill
+    const filled = (pct / 100) * ARC_LEN;
+    this.meterArcFill.setAttribute('stroke-dasharray', `${filled} ${ARC_LEN}`);
 
-    // Update text
-    this.meterTextEl.setText(`${pct}%`);
+    this.meterPctEl.setText(`${pct}%`);
 
-    // Update color state
     this.meterEl.removeClass('warning', 'critical');
     if (pct >= 90) {
       this.meterEl.addClass('critical');
@@ -233,7 +291,6 @@ export class InputToolbar {
       this.meterEl.addClass('warning');
     }
 
-    // Update tooltip
     const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
     const tooltip = [
       `Context: ${fmt(used)} / ${fmt(contextWindow)} tokens`,
@@ -293,7 +350,6 @@ export class InputToolbar {
         ? (this.modelOptions.find(o => o.value === this.currentModel)?.label ?? t().toolbar.noModels)
         : t().toolbar.noModels
     );
-    this.effortSelect.title = t().toolbar.effortTitle;
     this.renderModelDropdown();
     this.renderModeButtons();
     this.updatePermissionDisplay();
@@ -302,7 +358,7 @@ export class InputToolbar {
       { value: 'low', label: t().toolbar.effort.low },
       { value: 'medium', label: t().toolbar.effort.medium },
       { value: 'high', label: t().toolbar.effort.high },
-    ], this.effortSelect.value);
+    ], this.currentEffort);
     this.setSending(this.sending);
   }
 }

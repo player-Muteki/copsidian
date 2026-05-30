@@ -286,26 +286,85 @@
   margin-left: auto;
 }
 
-.copsidian-toolbar .tb-select {
+/* Effort selector (custom hover dropdown) */
+.copsidian-effort-selector {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.copsidian-effort-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: color 0.1s ease;
+}
+
+.copsidian-effort-btn:hover {
+  color: var(--text-normal);
+}
+
+.copsidian-effort-label {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.copsidian-effort-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s);
-  padding: 2px 6px;
-  font-size: var(--font-smaller);
-  color: var(--text-muted);
-  outline: none;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  width: max-content;
+  min-width: 100%;
+  padding: 4px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+}
+
+.copsidian-effort-selector:hover .copsidian-effort-dropdown {
+  opacity: 1;
+  visibility: visible;
+}
+
+.copsidian-effort-option {
+  padding: 3px 8px;
   cursor: pointer;
-  min-width: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-radius: 3px;
+  transition: background 0.1s ease, color 0.1s ease;
+  white-space: nowrap;
 }
 
-.copsidian-toolbar .tb-select:hover,
-.copsidian-toolbar .tb-select:focus {
+.copsidian-effort-option:hover {
+  background: var(--background-modifier-hover);
   color: var(--text-normal);
-  border-color: var(--text-accent);
 }
 
-.copsidian-toolbar .tb-agent { flex: 0 1 auto; }
-.copsidian-toolbar .tb-effort { flex: 0 1 auto; }
+.copsidian-effort-option.selected {
+  background: rgba(var(--interactive-accent-rgb), 0.15);
+  color: var(--text-accent);
+  font-weight: 500;
+}
+
+.copsidian-effort-option.empty {
+  color: var(--text-faint);
+  cursor: default;
+  pointer-events: none;
+}
 
 /* Model selector (custom dropdown) */
 .copsidian-model-selector {
@@ -490,55 +549,44 @@
   background: var(--text-warning);
 }
 
-/* Context meter — liquid glass style */
-.copsidian-meter {
-  position: relative;
+/* Context arc meter — semicircle gauge */
+.copsidian-arc-meter {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
-  min-width: 60px;
+  position: relative;
   transition: opacity 0.2s ease;
 }
 
-.copsidian-meter.empty {
+.copsidian-arc-meter.empty {
   opacity: 0.4;
 }
 
-.copsidian-meter-track {
-  position: relative;
-  width: 48px;
-  height: 6px;
-  background: var(--background-modifier-border);
-  border-radius: 3px;
-  overflow: hidden;
+.copsidian-arc-svg {
+  width: 32px;
+  height: 20px;
+  overflow: visible;
 }
 
-.copsidian-meter-fill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 100%;
-  border-radius: 3px;
-  background: linear-gradient(90deg, #2dd4bf, #38bdf8);
-  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  width: 0%;
+.copsidian-arc-track {
+  fill: none;
+  stroke: var(--background-modifier-border);
+  stroke-width: 3;
+  stroke-linecap: round;
 }
 
-.copsidian-meter-glow {
-  position: absolute;
-  left: 0;
-  top: -2px;
-  height: calc(100% + 4px);
-  border-radius: 5px;
-  background: linear-gradient(90deg, rgba(45, 212, 191, 0.3), rgba(56, 189, 248, 0.3));
-  filter: blur(3px);
-  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  width: 0%;
-  pointer-events: none;
+.copsidian-arc-fill {
+  fill: none;
+  stroke: #2dd4bf;
+  stroke-width: 3;
+  stroke-linecap: round;
+  transform: rotate(180deg);
+  transform-origin: 20px 20px;
+  transition: stroke-dasharray 0.4s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.2s ease;
 }
 
-.copsidian-meter-text {
+.copsidian-arc-pct {
   font-size: 10px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -549,46 +597,32 @@
 }
 
 /* Warning state (75-89%) */
-.copsidian-meter.warning .copsidian-meter-fill {
-  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+.copsidian-arc-meter.warning .copsidian-arc-fill {
+  stroke: #fbbf24;
 }
 
-.copsidian-meter.warning .copsidian-meter-glow {
-  background: linear-gradient(90deg, rgba(251, 191, 36, 0.3), rgba(245, 158, 11, 0.3));
-}
-
-.copsidian-meter.warning .copsidian-meter-text {
+.copsidian-arc-meter.warning .copsidian-arc-pct {
   color: var(--text-warning);
 }
 
 /* Critical state (90%+) */
-.copsidian-meter.critical .copsidian-meter-fill {
-  background: linear-gradient(90deg, #f87171, #ef4444);
-  animation: copsidian-meter-pulse 1.5s ease-in-out infinite;
+.copsidian-arc-meter.critical .copsidian-arc-fill {
+  stroke: #f87171;
+  animation: copsidian-arc-pulse 1.5s ease-in-out infinite;
 }
 
-.copsidian-meter.critical .copsidian-meter-glow {
-  background: linear-gradient(90deg, rgba(248, 113, 113, 0.4), rgba(239, 68, 68, 0.4));
-  animation: copsidian-meter-glow-pulse 1.5s ease-in-out infinite;
-}
-
-.copsidian-meter.critical .copsidian-meter-text {
+.copsidian-arc-meter.critical .copsidian-arc-pct {
   color: var(--text-error);
   font-weight: 700;
 }
 
-@keyframes copsidian-meter-pulse {
+@keyframes copsidian-arc-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
 }
 
-@keyframes copsidian-meter-glow-pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
-}
-
 /* Tooltip on hover */
-.copsidian-meter[data-tooltip]:hover::after {
+.copsidian-arc-meter[data-tooltip]:hover::after {
   content: attr(data-tooltip);
   position: absolute;
   bottom: 100%;
