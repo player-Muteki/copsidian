@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.38 - 2026-05-30
+
+### Added
+- Add a compact "liquid glass" context usage meter in the toolbar.
+- Context meter shows percentage, warning/critical states, and token details on hover.
+
+### Changed
+- Usage updates now refresh the toolbar meter during streaming and after final response usage is received.
+
 ## 0.0.37 - 2026-05-30
 
 ### Changed

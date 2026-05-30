@@ -1,5 +1,14 @@
 import { t, onLocaleChange } from '../i18n/index';
 
+export interface UsageInfo {
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  thoughtTokens?: number;
+  contextWindow?: number;
+  percentage?: number;
+}
+
 export interface ToolbarCallbacks {
   onAgentChange?: (agent: string) => void;
   onModelChange?: (model: string) => void;
@@ -34,6 +43,13 @@ export class InputToolbar {
   private permSwitchEl: HTMLDivElement;
   private currentPermission: string = 'safe';
 
+  // Context meter
+  private meterEl: HTMLDivElement;
+  private meterTrackEl: HTMLDivElement;
+  private meterFillEl: HTMLDivElement;
+  private meterGlowEl: HTMLDivElement;
+  private meterTextEl: HTMLSpanElement;
+
   constructor(container: HTMLDivElement, private callbacks: ToolbarCallbacks) {
     container.addClass('copsidian-toolbar');
     onLocaleChange(() => this.refreshLocale());
@@ -52,6 +68,15 @@ export class InputToolbar {
     this.effortSelect = container.createEl('select', { cls: 'copsidian-dropdown tb-select tb-effort' });
     this.effortSelect.title = t().toolbar.effortTitle;
     this.effortSelect.onchange = () => this.callbacks.onEffortChange?.(this.effortSelect.value);
+
+    // Context meter
+    this.meterEl = container.createDiv({ cls: 'copsidian-meter' });
+    this.meterTrackEl = this.meterEl.createDiv({ cls: 'copsidian-meter-track' });
+    this.meterFillEl = this.meterTrackEl.createDiv({ cls: 'copsidian-meter-fill' });
+    this.meterGlowEl = this.meterTrackEl.createDiv({ cls: 'copsidian-meter-glow' });
+    this.meterTextEl = this.meterEl.createSpan({ cls: 'copsidian-meter-text' });
+    this.meterTextEl.setText('—');
+    this.meterEl.addClass('empty');
 
     // Permission toggle
     this.permToggleEl = container.createDiv({ cls: 'copsidian-perm-toggle' });
@@ -165,6 +190,53 @@ export class InputToolbar {
     this.effortSelect.empty();
     for (const o of options) this.effortSelect.createEl('option', { text: o.label, value: o.value });
     if (current) this.effortSelect.value = current;
+  }
+
+  // ── Context meter ──
+
+  updateContextMeter(usage: UsageInfo | null): void {
+    if (!usage || usage.totalTokens <= 0) {
+      this.meterEl.addClass('empty');
+      this.meterEl.removeClass('warning', 'critical');
+      this.meterTextEl.setText('—');
+      this.meterFillEl.style.width = '0%';
+      this.meterGlowEl.style.width = '0%';
+      this.meterEl.removeAttribute('data-tooltip');
+      return;
+    }
+
+    this.meterEl.removeClass('empty');
+
+    // Calculate percentage
+    const contextWindow = usage.contextWindow ?? 200000;
+    const used = usage.inputTokens + (usage.thoughtTokens ?? 0) + (usage.outputTokens ?? 0);
+    const pct = contextWindow > 0 ? Math.min(100, Math.round((used / contextWindow) * 100)) : 0;
+
+    // Update fill width
+    this.meterFillEl.style.width = `${pct}%`;
+    this.meterGlowEl.style.width = `${pct}%`;
+
+    // Update text
+    this.meterTextEl.setText(`${pct}%`);
+
+    // Update color state
+    this.meterEl.removeClass('warning', 'critical');
+    if (pct >= 90) {
+      this.meterEl.addClass('critical');
+    } else if (pct >= 75) {
+      this.meterEl.addClass('warning');
+    }
+
+    // Update tooltip
+    const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+    const tooltip = [
+      `Context: ${fmt(used)} / ${fmt(contextWindow)} tokens`,
+      `Input: ${fmt(usage.inputTokens)}`,
+      usage.thoughtTokens ? `Thinking: ${fmt(usage.thoughtTokens)}` : '',
+      `Output: ${fmt(usage.outputTokens)}`,
+      pct >= 80 ? '⚠ Approaching limit — run /compact' : '',
+    ].filter(Boolean).join('\n');
+    this.meterEl.setAttribute('data-tooltip', tooltip);
   }
 
   // ── Permission toggle ──

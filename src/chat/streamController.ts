@@ -16,6 +16,7 @@ export interface StreamControllerDeps {
 	onModeUpdate?: (currentModeId: string | null, availableModes: ModeOption[]) => void;
 	onModelsUpdate?: (currentModelId: string | null, availableModels: ModelOption[]) => void;
 	onCommandsUpdate?: (commands: AvailableCommand[]) => void;
+	onUsageUpdate?: () => void;
 	onSyncFailure?: (message: string) => void;
 }
 
@@ -99,6 +100,7 @@ export class StreamController {
 					thoughtTokens: ch.thoughtTokens,
 					cost: ch.cost,
 				};
+				this.deps.onUsageUpdate?.();
 				break;
 			}
 			case 'mode': {

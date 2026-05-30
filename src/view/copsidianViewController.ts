@@ -72,6 +72,7 @@ export class CopsidianViewController {
 			onModeUpdate: (modeId, modes) => this.applyModeUpdate(modeId, modes),
 			onModelsUpdate: (modelId, models) => this.applyModelUpdate(modelId, models),
 			onCommandsUpdate: () => {},
+			onUsageUpdate: () => this.deps.toolbar.updateContextMeter(this.state.usage),
 			onSyncFailure: (message) => deps.renderer.addError(message),
 		});
 	}
@@ -163,6 +164,7 @@ export class CopsidianViewController {
 		this.busy = false;
 		this.state.isStreaming = false;
 		this.state.usage = null;
+		this.deps.toolbar.updateContextMeter(null);
 		this.state.lastError = null;
 		this.state.needsAttention = false;
 		this.deps.input.setStreaming(false);
@@ -380,6 +382,7 @@ export class CopsidianViewController {
 					thoughtTokens: response.usage.thoughtTokens,
 					cost: this.state.usage?.cost,
 				};
+				this.deps.toolbar.updateContextMeter(this.state.usage);
 			}
 		} catch (e: unknown) {
 			if (this.state.sessionId === sessionId) {
@@ -605,6 +608,7 @@ export class CopsidianViewController {
 		this.busy = false;
 		this.state.isStreaming = false;
 		this.state.usage = null;
+		this.deps.toolbar.updateContextMeter(null);
 		this.state.lastError = null;
 		this.state.needsAttention = false;
 		this.deps.input.setStreaming(false);
