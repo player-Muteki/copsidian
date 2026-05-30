@@ -1,8 +1,8 @@
 # Copsilot
 
-![GitHub stars](https://img.shields.io/github/stars/player-Muteki/copsidian?style=social)
-![GitHub release](https://img.shields.io/github/v/release/player-Muteki/copsidian)
-![License](https://img.shields.io/github/license/player-Muteki/copsidian)
+![GitHub stars](https://img.shields.io/github/stars/player-Muteki/copsilot?style=social)
+![GitHub release](https://img.shields.io/github/v/release/player-Muteki/copsilot)
+![License](https://img.shields.io/github/license/player-Muteki/copsilot)
 
 > Beta — currently in public testing.
 
@@ -93,7 +93,7 @@ Legend: ✅ supported / 🟡 partially supported / ❌ not supported.
 1. Clone this repository into your vault's plugins folder:
    ```bash
    cd /path/to/vault/.obsidian/plugins
-   git clone https://github.com/player-Muteki/copsidian.git
+   git clone https://github.com/player-Muteki/copsilot.git
    cd copsidian
    ```
 
@@ -229,9 +229,9 @@ Licensed under the [MIT License](LICENSE).
 
 <a href="https://www.star-history.com/?repos=player-Muteki%2Fcopsidian&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=player-Muteki/copsidian&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=player-Muteki/copsidian&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=player-Muteki/copsidian&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=player-Muteki/copsilot&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=player-Muteki/copsilot&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=player-Muteki/copsilot&type=date&legend=top-left" />
  </picture>
 </a>
 
@@ -333,7 +333,7 @@ Licensed under the [MIT License](LICENSE).
 1. 将仓库克隆到 Vault 的插件目录：
    ```bash
    cd /path/to/vault/.obsidian/plugins
-   git clone https://github.com/player-Muteki/copsidian.git
+   git clone https://github.com/player-Muteki/copsilot.git
    cd copsidian
    ```
 
@@ -469,9 +469,9 @@ src/
 
 <a href="https://www.star-history.com/?repos=player-Muteki%2Fcopsidian&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=player-Muteki/copsidian&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=player-Muteki/copsidian&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=player-Muteki/copsidian&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=player-Muteki/copsilot&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=player-Muteki/copsilot&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=player-Muteki/copsilot&type=date&legend=top-left" />
  </picture>
 </a>
 
